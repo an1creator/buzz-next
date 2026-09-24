@@ -131,6 +131,7 @@ pub async fn get_working_folder_settings(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn set_channel_working_folder(
     app: AppHandle,
     state: State<'_, AppState>,

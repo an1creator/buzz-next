@@ -38,6 +38,7 @@ import { JSDOM } from "jsdom";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost",
+  pretendToBeVisual: true,
 });
 
 // Track every QueryClient so afterEach can cancel pending queries + clear the
@@ -56,6 +57,7 @@ let QueryClientProvider;
 let ThemeProvider;
 let CommunitiesProvider;
 let AgentInstanceEditDialog;
+let ChannelWorkingFolders;
 
 // Records every Tauri command invocation the mounted dialog issues; unmocked
 // commands reject so a new IPC dependency surfaces as a loud failure.
@@ -297,7 +299,7 @@ function installEffortIpc({ deferUpdate = false, failUpdate = false } = {}) {
   };
 }
 
-function renderDialog(onOpenChange) {
+function renderDialog(onOpenChange, subject = null) {
   const client = new QueryClient({
     defaultOptions: {
       mutations: { gcTime: 0 },
@@ -315,12 +317,13 @@ function renderDialog(onOpenChange) {
         createElement(
           CommunitiesProvider,
           null,
-          createElement(AgentInstanceEditDialog, {
-            agent: { ...toCamelAgent(rawAgent()) },
-            open: true,
-            onOpenChange,
-            onUpdated: () => {},
-          }),
+          subject ??
+            createElement(AgentInstanceEditDialog, {
+              agent: { ...toCamelAgent(rawAgent()) },
+              open: true,
+              onOpenChange,
+              onUpdated: () => {},
+            }),
         ),
       ),
     ),
@@ -463,6 +466,9 @@ before(async () => {
   ));
   ({ ThemeProvider } = await import("@/shared/theme/ThemeProvider"));
   ({ AgentInstanceEditDialog } = await import("./AgentInstanceEditDialog.tsx"));
+  ({ ChannelWorkingFolders } = await import(
+    "@/features/channels/ui/ChannelWorkingFolders"
+  ));
 });
 
 afterEach(() => {
@@ -1146,4 +1152,58 @@ test("working folder Save uses the existing atomic agent update", async () => {
   const writes = ipcCalls.filter((c) => c.cmd === "update_managed_agent");
   assert.equal(writes.length, 1);
   assert.equal(writes[0].args.input.envVars.BUZZ_ACP_WORKSPACE, "/srv/project");
+});
+
+test("channel folder Save is scoped, reports failures and preserves its draft", async () => {
+  installIpc();
+  const channelId = "11111111-1111-4111-8111-111111111111";
+  ipcHandlers.set("working_folder_targets", () =>
+    Promise.resolve([
+      { id: "server", agentPubkey: AGENT_PK, label: "My server" },
+    ]),
+  );
+  ipcHandlers.set("get_working_folder_settings", () =>
+    Promise.resolve({
+      targetId: "server",
+      supported: true,
+      defaultEnvKey: "BUZZ_ACP_WORKSPACE",
+      remote: true,
+      folder: { path: null, revision: 7 },
+    }),
+  );
+  const writes = [];
+  ipcHandlers.set("set_channel_working_folder", (args) => {
+    writes.push(args);
+    return Promise.reject("Folder settings changed. Reload before saving.");
+  });
+  await act(async () => {
+    renderDialog(() => {}, createElement(ChannelWorkingFolders, { channelId }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("channel-working-folders"));
+  });
+  const input = await screen.findByRole("textbox", { name: "Working folder" });
+  await act(async () => {
+    fireEvent.change(input, { target: { value: "/srv/channel" } });
+  });
+  assert.equal(writes.length, 0);
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Save", exact: true }));
+  });
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0], {
+    agentPubkey: AGENT_PK,
+    channelId,
+    targetId: "server",
+    path: "/srv/channel",
+    revision: 7,
+    expectedRelayUrl: "wss://test.example",
+    expectedSignerPubkey: "a".repeat(64),
+  });
+  assert.match(screen.getByRole("alert").textContent, /Reload before saving/);
+  assert.equal(input.value, "/srv/channel");
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  });
+  assert.equal(writes.length, 1);
 });

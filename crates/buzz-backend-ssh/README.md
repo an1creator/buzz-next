@@ -19,8 +19,16 @@ Provider configuration contains only `host` and an installed `profile` name.
 
 The Desktop launch block supplies resolved policy/user environment and owner.
 The profile maps a logical command such as `codex-acp` to installed server files.
-`BUZZ_REMOTE_WORKSPACE` overrides the profile workspace and must name an existing
-absolute directory. Per-channel workspace configuration is not implemented here.
+Working-folder precedence is channel override → `BUZZ_ACP_WORKSPACE` → legacy
+`BUZZ_REMOTE_WORKSPACE` → profile workspace. `BUZZ_ACP_CHANNEL_WORKSPACES` is a
+launcher-scoped JSON map of channel UUIDs to absolute paths, captured alongside
+the agent default. Desktop scopes it by owner, community and execution target;
+agent and channel controls save preferences without restarting active work.
+Provider and host advertise `workspace_protocol: 1`; configured folders require
+this capability before credentials cross SSH. The host resolves existing canonical
+directories on Linux, and the harness supplies each channel's directory to ACP
+`session/new`. Invalid paths fail closed. DMs inherit the agent default. The
+[shared contract](../buzz-workspaces/src/lib.rs) bounds and validates the snapshot.
 
 The scope is SHA-256 of canonical community URL and the public key derived from
 the supplied agent nsec. Deployment and process-lifetime locks prevent simultaneous

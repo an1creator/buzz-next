@@ -22,7 +22,9 @@ pub struct ChannelFolder {
 /// Backend identity includes the full provider configuration (host and profile).
 /// Local settings belong to this installation's app-data directory.
 pub fn target_id(backend: &BackendKind) -> Result<String, String> {
-    let bytes = serde_json::to_vec(backend).map_err(|e| e.to_string())?;
+    let mut value = serde_json::to_value(backend).map_err(|e| e.to_string())?;
+    value.sort_all_objects();
+    let bytes = serde_json::to_vec(&value).map_err(|e| e.to_string())?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }
 
@@ -37,10 +39,10 @@ fn store_path<R: tauri::Runtime>(
 
 fn filename(owner: &str, relay: &str, backend: &BackendKind) -> Result<String, String> {
     let scope = super::ManagedAgentRuntimeKey::new(owner, relay)?;
+    let identity = format!("{}:{}", scope.runtime_id(), target_id(backend)?);
     Ok(format!(
-        "working-folders-{}-{}.json",
-        scope.runtime_id(),
-        target_id(backend)?
+        "working-folders-{}.json",
+        hex::encode(Sha256::digest(identity.as_bytes()))
     ))
 }
 
@@ -83,6 +85,7 @@ pub fn channel<R: tauri::Runtime>(
 }
 
 /// Caller holds managed_agents_store_lock. A revision rejects stale editors.
+#[allow(clippy::too_many_arguments)]
 pub fn save<R: tauri::Runtime>(
     app: &AppHandle<R>,
     owner: &str,
@@ -159,7 +162,7 @@ mod tests {
             id: "ssh".into(),
             config: serde_json::json!({"host":"server","profile":"shared-codex"}),
         };
-        let a = filename(&owner, "https://one.example/", &local).unwrap();
+        let a = filename(&owner, "wss://ONE.example:443/", &local).unwrap();
         assert_eq!(a, filename(&owner, "wss://one.example", &local).unwrap());
         assert_ne!(
             a,
