@@ -101,12 +101,13 @@ esac
 #[test]
 fn concurrent_start_preserves_running_snapshot_and_single_instance() {
     let host = Host::new();
-    let first = host.start(&host.request);
-    let second = host.start(&host.request);
-    let a = Host::result(first);
-    let b = Host::result(second);
+    let starts: Vec<_> = (0..8).map(|_| host.start(&host.request)).collect();
+    let mut results = starts.into_iter().map(Host::result);
+    let a = results.next().unwrap();
     assert_eq!(a["ok"], true, "{a}");
-    assert_eq!(a, b);
+    for result in results {
+        assert_eq!(a, result);
+    }
     assert_eq!(
         fs::read_to_string(host.root.path().join("starts")).unwrap(),
         "start\n"
@@ -167,4 +168,36 @@ fn explicit_restart_after_exit_applies_new_snapshot() {
     )
     .unwrap();
     assert_eq!(snapshot["env"]["MODEL"], "changed");
+}
+
+#[test]
+fn existing_state_must_still_be_private_and_not_a_symlink() {
+    let host = Host::new();
+    let state = host.root.path().join("state");
+    fs::create_dir(&state).unwrap();
+    fs::set_permissions(&state, fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(Host::result(host.start(&host.request))["ok"], false);
+    fs::remove_dir(&state).unwrap();
+    std::os::unix::fs::symlink(host.root.path(), &state).unwrap();
+    assert_eq!(Host::result(host.start(&host.request))["ok"], false);
+    assert!(!host.root.path().join("starts").exists());
+}
+
+#[test]
+fn combined_profile_and_request_cannot_publish_an_unreadable_snapshot() {
+    let mut host = Host::new();
+    let config_path = host.root.path().join(".config/buzz-next/host.json");
+    let mut config: Value = serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+    config["profiles"]["shared-codex"]["env"] = json!({"HOST_DATA":"x".repeat(600_000)});
+    fs::write(config_path, config.to_string()).unwrap();
+    host.request["agent"]["launch"]["env"] = json!({"CLIENT_DATA":"y".repeat(600_000)});
+    let result = Host::result(host.start(&host.request));
+    assert_eq!(result["ok"], false);
+    assert_eq!(result["error"], "resolved launch snapshot exceeds 1 MiB");
+    assert!(!host.root.path().join("starts").exists());
+    for scope in fs::read_dir(host.root.path().join("state")).unwrap() {
+        let scope = scope.unwrap().path();
+        assert!(!scope.join("launch.tmp").exists());
+        assert!(!scope.join("launch.json").exists());
+    }
 }

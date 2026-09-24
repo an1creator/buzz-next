@@ -67,11 +67,12 @@ pub fn config() -> Result<HostConfig, String> {
 }
 
 fn private_dir(path: &Path) -> Result<(), String> {
-    if !path.exists() {
-        fs::DirBuilder::new()
-            .mode(0o700)
-            .create(path)
-            .map_err(|_| "cannot create private state directory")?;
+    // Concurrent first deployments can both reach mkdir before either acquires
+    // a scope lock. Existing paths still pass the same privacy/type validation.
+    if let Err(error) = fs::DirBuilder::new().mode(0o700).create(path) {
+        if error.kind() != std::io::ErrorKind::AlreadyExists {
+            return Err("cannot create private state directory".into());
+        }
     }
     let meta = fs::symlink_metadata(path).map_err(|_| "cannot inspect state directory")?;
     if !meta.is_dir() || meta.permissions().mode() & 0o077 != 0 {
@@ -293,6 +294,10 @@ pub async fn deploy(cfg: &HostConfig, request: Deploy) -> Result<String, String>
     run_lock
         .try_lock_exclusive()
         .map_err(|_| "agent process still owns this scope")?;
+    let bytes = serde_json::to_vec(&snapshot).map_err(|_| "cannot encode snapshot")?;
+    if bytes.len() > crate::MAX_BYTES {
+        return Err("resolved launch snapshot exceeds 1 MiB".into());
+    }
     let temp = directory.join("launch.tmp");
     let mut file = OpenOptions::new()
         .create_new(true)
@@ -300,7 +305,6 @@ pub async fn deploy(cfg: &HostConfig, request: Deploy) -> Result<String, String>
         .mode(0o600)
         .open(&temp)
         .map_err(|_| "cannot create snapshot; inspect incomplete host deployment")?;
-    let bytes = serde_json::to_vec(&snapshot).map_err(|_| "cannot encode snapshot")?;
     file.write_all(&bytes)
         .and_then(|_| file.sync_all())
         .map_err(|_| "cannot save snapshot")?;
