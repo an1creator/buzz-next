@@ -1,0 +1,14 @@
+[Unit]
+Description=Buzz Next autonomous agent %i
+After=network-online.target
+
+[Service]
+Type=exec
+ExecStart=%h/.local/bin/buzz-host run %i
+Restart=no
+KillMode=control-group
+TimeoutStopSec=30
+RuntimeMaxSec=7d
+UMask=0077
+StandardOutput=journal
+StandardError=journal

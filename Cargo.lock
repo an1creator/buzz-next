@@ -1094,6 +1094,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "buzz-backend-ssh"
+version = "0.1.0"
+dependencies = [
+ "fs2",
+ "futures-util",
+ "hex",
+ "nostr 0.44.7",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite 0.29.0",
+ "tokio-util",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "buzz-cli"
 version = "0.1.0"
 dependencies = [
