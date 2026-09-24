@@ -6,6 +6,12 @@ on:
       - .github/workflows/buzz-next-windows.yml
       - desktop/**
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Buzz Next version (X.Y.Z or X.Y.Z-next.N)'
+        required: true
+        default: '0.5.24-next.1'
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -18,7 +24,7 @@ jobs:
     timeout-minutes: 120
     env:
       TARGET: x86_64-pc-windows-msvc
-      VERSION: 0.5.24-next.1
+      VERSION: ${{ inputs.version || '0.5.24-next.1' }}
       CARGO_BUILD_JOBS: 2
       BUZZ_UPDATER_ENDPOINT: https://buzz.n1creator.com/updates/windows/latest.json
       BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY }}
