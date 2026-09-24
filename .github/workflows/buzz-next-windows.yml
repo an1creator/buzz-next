@@ -1,0 +1,80 @@
+name: Buzz Next Windows
+on:
+  push:
+    branches: [feature/windows-release]
+    paths:
+      - .github/workflows/buzz-next-windows.yml
+      - desktop/**
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: buzz-next-windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    if: github.repository == 'an1creator/buzz-next'
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      TARGET: x86_64-pc-windows-msvc
+      VERSION: 0.5.24-next.1
+      CARGO_BUILD_JOBS: 2
+      BUZZ_UPDATER_ENDPOINT: https://buzz.n1creator.com/updates/windows/latest.json
+      BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          targets: ${{ env.TARGET }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.14.1
+          package-manager-cache: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with:
+          version: 11.4.0
+      - name: Install dependencies and configure Buzz Next
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          cd desktop
+          node scripts/set-version-from-tag.mjs "$VERSION"
+          node scripts/build-release-config.mjs
+          node scripts/build-next-config.mjs
+          cd src-tauri
+          cargo update --workspace
+      - name: Build native sidecars and SSH provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli -p buzz-backend-ssh
+          scripts/bundle-sidecars.sh "$TARGET"
+          cp "target/$TARGET/release/buzz-backend-ssh.exe" "desktop/src-tauri/binaries/buzz-backend-ssh-$TARGET.exe"
+      - name: Build signed updater artifact
+        shell: bash
+        run: cd desktop && pnpm tauri build --target "$TARGET" --bundles nsis --config src-tauri/tauri.next.conf.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+      - name: Record candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir candidate
+          cp desktop/src-tauri/target/$TARGET/release/bundle/nsis/*.exe candidate/
+          cp desktop/src-tauri/target/$TARGET/release/bundle/nsis/*.exe.sig candidate/
+          printf '%s\n' "$GITHUB_SHA" > candidate/SOURCE_COMMIT
+          printf '%s\n' "$VERSION" > candidate/VERSION
+          cd candidate
+          sha256sum *.exe > SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: buzz-next-windows-${{ github.sha }}
+          path: candidate/
+          retention-days: 7
+          if-no-files-found: error
