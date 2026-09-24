@@ -521,6 +521,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::working_folder_targets,
+            commands::get_working_folder_settings,
+            commands::set_channel_working_folder,
             terminal_runtime::terminal_attach,
             terminal_runtime::terminal_detach,
             terminal_runtime::terminal_close,

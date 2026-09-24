@@ -100,22 +100,6 @@ fn lock_file(path: &Path) -> Result<File, String> {
         .map_err(|_| "cannot open deployment lock".into())
 }
 
-fn canonical_dir(raw: &str) -> Result<String, String> {
-    let path = Path::new(raw);
-    if !path.is_absolute() {
-        return Err("workspace must be an absolute server path".into());
-    }
-    let path = path
-        .canonicalize()
-        .map_err(|_| "workspace does not exist on host")?;
-    if !path.is_dir() {
-        return Err("workspace is not a directory".into());
-    }
-    path.to_str()
-        .map(str::to_owned)
-        .ok_or_else(|| "workspace is not UTF-8".into())
-}
-
 fn executable(raw: &str) -> Result<(), String> {
     let path = Path::new(raw);
     let meta = path
@@ -160,10 +144,10 @@ pub fn snapshot(cfg: &HostConfig, request: &Deploy) -> Result<Snapshot, String> 
     let mut env = agent.launch.policy_env.clone();
     env.extend(agent.launch.env.clone());
     wire::validate_env(&env)?;
-    let workspace = canonical_dir(
-        env.get("BUZZ_REMOTE_WORKSPACE")
-            .unwrap_or(&profile.workspace),
-    )?;
+    let workspace = env
+        .get("BUZZ_REMOTE_WORKSPACE")
+        .unwrap_or(&profile.workspace)
+        .clone();
     for key in [
         "BUZZ_PRIVATE_KEY",
         "NOSTR_PRIVATE_KEY",
@@ -251,9 +235,19 @@ pub fn snapshot(cfg: &HostConfig, request: &Deploy) -> Result<Snapshot, String> 
             .into(),
     );
     wire::validate_env(&env)?;
+    let folders = buzz_workspaces::Workspaces::parse(
+        env.get(buzz_workspaces::DEFAULT_ENV).map(String::as_str),
+        env.get(buzz_workspaces::CHANNELS_ENV).map(String::as_str),
+    )?
+    .resolve(Path::new(&workspace))?;
+    env.insert(buzz_workspaces::DEFAULT_ENV.into(), folders.default.clone());
+    env.insert(
+        buzz_workspaces::CHANNELS_ENV.into(),
+        serde_json::to_string(&folders.channels).map_err(|_| "cannot encode channel folders")?,
+    );
     Ok(Snapshot {
         scope,
-        workspace,
+        workspace: folders.default,
         harness: profile.harness.clone(),
         cli: profile.cli.clone(),
         env,

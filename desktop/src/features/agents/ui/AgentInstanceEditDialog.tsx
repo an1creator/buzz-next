@@ -1,3 +1,5 @@
+import { AgentEditDialogFooter } from "./AgentEditDialogFooter";
+import { useAgentWorkingFolder } from "./AgentWorkingFolderField";
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
@@ -395,6 +397,14 @@ export function AgentInstanceEditDialog({
     },
     inheritedEnvVars: inheritedEnvVarsForAdvanced,
   } = useAgentDialogDefaults({ inheritedEnvVars, open });
+  const workingFolder = useAgentWorkingFolder({
+    pubkey: agent.pubkey,
+    open,
+    envVars,
+    inheritedEnvVars: inheritedEnvVarsForAdvanced,
+    disabled: isSaving,
+    setEnvVars,
+  });
 
   // Runtime/provider-required credential state for the PROSPECTIVE post-submit runtime.
   // globalProvider/globalEnvVars: fallback for empty per-agent provider; keys satisfied globally don't block Save.
@@ -920,24 +930,13 @@ export function AgentInstanceEditDialog({
         headerClassName="pb-2"
         title={`Edit ${agent.name}`}
         footer={
-          <div className="flex w-full items-center justify-end gap-2">
-            <Button
-              disabled={isSaving || isAvatarUploadPending}
-              onClick={() => handleOpenChange(false)}
-              type="button"
-              variant="outline"
-            >
-              Cancel
-            </Button>
-            <Button
-              data-testid="edit-agent-dialog-submit"
-              disabled={!canSubmit}
-              onClick={() => void handleSubmit()}
-              type="button"
-            >
-              {isSaving ? "Saving..." : "Save changes"}
-            </Button>
-          </div>
+          <AgentEditDialogFooter
+            saving={isSaving}
+            avatarPending={isAvatarUploadPending}
+            canSubmit={canSubmit}
+            onCancel={() => handleOpenChange(false)}
+            onSave={() => void handleSubmit()}
+          />
         }
       >
         <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
@@ -1009,8 +1008,8 @@ export function AgentInstanceEditDialog({
               onModeChange={setRespondTo}
             />
             <RunOnSummarySection backend={agent.backend} />
+            {workingFolder.field}
 
-            {/* Provider (runtime) */}
             <div className="space-y-1.5">
               <label
                 className="text-sm font-medium text-foreground"
@@ -1179,9 +1178,10 @@ export function AgentInstanceEditDialog({
                       disabled={isSaving}
                       envVars={envVars}
                       fileSatisfiedEnvKeys={fileSatisfiedEnvKeys}
-                      hiddenEnvKeys={
-                        topLevelSecretEnvVar ? [topLevelSecretEnvVar] : []
-                      }
+                      hiddenEnvKeys={[
+                        ...(topLevelSecretEnvVar ? [topLevelSecretEnvVar] : []),
+                        ...workingFolder.hiddenKeys,
+                      ]}
                       focusKey={
                         initialFocus?.type === "env_key"
                           ? initialFocus.key

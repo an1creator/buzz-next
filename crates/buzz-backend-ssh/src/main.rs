@@ -15,6 +15,7 @@ async fn respond() -> Result<Value, String> {
         Some("info") => Ok(json!({
             "ok":true,"name":"ssh","version":env!("CARGO_PKG_VERSION"),
             "protocol_version":1,
+            "workspace_protocol":1,
             "description":"Runs an installed autonomous Buzz harness over SSH",
             "config_schema":{"type":"object","required":["host"],"properties":{
                 "host":{"type":"string","title":"SSH host or user@host"},
@@ -35,6 +36,18 @@ async fn respond() -> Result<Value, String> {
             if info.get("host_protocol") != Some(&json!(1)) || info.get("ok") != Some(&json!(true))
             {
                 return Err("host protocol mismatch; install a compatible buzz-host".into());
+            }
+            let has_workspaces = ["env", "policy_env"].iter().any(|tier| {
+                [buzz_workspaces::DEFAULT_ENV, buzz_workspaces::CHANNELS_ENV]
+                    .iter()
+                    .any(|key| {
+                        request["agent"]["launch"][tier][key]
+                            .as_str()
+                            .is_some_and(|v| !v.is_empty() && v != "{}")
+                    })
+            });
+            if has_workspaces && info.get("workspace_protocol") != Some(&json!(1)) {
+                return Err("Update the server runtime before using working folders".into());
             }
             let bytes = serde_json::to_vec(&request).map_err(|_| "cannot encode launch request")?;
             ssh(&config.host, "deploy", &bytes).await

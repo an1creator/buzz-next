@@ -54,6 +54,7 @@ let createElement;
 let QueryClient;
 let QueryClientProvider;
 let ThemeProvider;
+let CommunitiesProvider;
 let AgentInstanceEditDialog;
 
 // Records every Tauri command invocation the mounted dialog issues; unmocked
@@ -186,6 +187,29 @@ function configSurface() {
 
 function installIpc() {
   const set = (cmd, handler) => ipcHandlers.set(cmd, handler);
+  dom.window.localStorage.setItem(
+    "buzz-communities",
+    JSON.stringify([
+      {
+        id: "test",
+        name: "Test",
+        relayUrl: "wss://test.example",
+        pubkey: "a".repeat(64),
+      },
+    ]),
+  );
+  set("get_identity", () =>
+    Promise.resolve({ pubkey: "a".repeat(64), display_name: "Owner" }),
+  );
+  set("get_working_folder_settings", () =>
+    Promise.resolve({
+      targetId: "local",
+      supported: true,
+      defaultEnvKey: "BUZZ_ACP_WORKSPACE",
+      remote: false,
+      folder: null,
+    }),
+  );
   set("discover_acp_providers", () =>
     Promise.resolve([rawRuntime("claude"), rawRuntime("goose")]),
   );
@@ -288,12 +312,16 @@ function renderDialog(onOpenChange) {
       createElement(
         QueryClientProvider,
         { client },
-        createElement(AgentInstanceEditDialog, {
-          agent: { ...toCamelAgent(rawAgent()) },
-          open: true,
-          onOpenChange,
-          onUpdated: () => {},
-        }),
+        createElement(
+          CommunitiesProvider,
+          null,
+          createElement(AgentInstanceEditDialog, {
+            agent: { ...toCamelAgent(rawAgent()) },
+            open: true,
+            onOpenChange,
+            onUpdated: () => {},
+          }),
+        ),
       ),
     ),
   );
@@ -371,6 +399,7 @@ async function expandAdvancedAndToggleInherit() {
 before(async () => {
   Object.assign(globalThis, {
     document: dom.window.document,
+    localStorage: dom.window.localStorage,
     window: dom.window,
     IS_REACT_ACT_ENVIRONMENT: true,
   });
@@ -428,6 +457,9 @@ before(async () => {
   ({ createElement } = await import("react"));
   ({ QueryClient, QueryClientProvider } = await import(
     "@tanstack/react-query"
+  ));
+  ({ CommunitiesProvider } = await import(
+    "@/features/communities/useCommunities"
   ));
   ({ ThemeProvider } = await import("@/shared/theme/ThemeProvider"));
   ({ AgentInstanceEditDialog } = await import("./AgentInstanceEditDialog.tsx"));
@@ -1075,4 +1107,43 @@ test("auto-restart and inherit checkboxes are disabled while the locked update w
     resolveUpdate();
     await new Promise((resolve) => setTimeout(resolve, 5));
   });
+});
+
+test("working folder edits remain local until Save and Cancel writes nothing", async () => {
+  installIpc();
+  await act(async () => {
+    renderDialog(() => {});
+  });
+  const input = await screen.findByRole("textbox", { name: "Working folder" });
+  await act(async () => {
+    fireEvent.change(input, { target: { value: "/srv/project" } });
+  });
+  assert.equal(
+    ipcCalls.filter((c) => c.cmd === "update_managed_agent").length,
+    0,
+  );
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  });
+  assert.equal(
+    ipcCalls.filter((c) => c.cmd === "update_managed_agent").length,
+    0,
+  );
+});
+
+test("working folder Save uses the existing atomic agent update", async () => {
+  installIpc();
+  await act(async () => {
+    renderDialog(() => {});
+  });
+  const input = await screen.findByRole("textbox", { name: "Working folder" });
+  await act(async () => {
+    fireEvent.change(input, { target: { value: "/srv/project" } });
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  });
+  const writes = ipcCalls.filter((c) => c.cmd === "update_managed_agent");
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].args.input.envVars.BUZZ_ACP_WORKSPACE, "/srv/project");
 });

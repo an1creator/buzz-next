@@ -945,6 +945,7 @@ dependencies = [
  "buzz-core",
  "buzz-persona",
  "buzz-sdk",
+ "buzz-workspaces",
  "chrono",
  "clap",
  "evalexpr",
@@ -1097,6 +1098,7 @@ dependencies = [
 name = "buzz-backend-ssh"
 version = "0.1.0"
 dependencies = [
+ "buzz-workspaces",
  "fs2",
  "futures-util",
  "hex",
@@ -1597,6 +1599,16 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "buzz-workspaces"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
  "uuid",
 ]
 

@@ -201,3 +201,59 @@ fn combined_profile_and_request_cannot_publish_an_unreadable_snapshot() {
         assert!(!scope.join("launch.json").exists());
     }
 }
+
+#[test]
+fn workspace_snapshot_validates_directories_and_only_changes_after_exit() {
+    let host = Host::new();
+    let agent = host.root.path().join("agent-folder");
+    let channel = host.root.path().join("channel-folder");
+    fs::create_dir(&agent).unwrap();
+    fs::create_dir(&channel).unwrap();
+    let channel_id = "11111111-1111-4111-8111-111111111111";
+    let mut request = host.request.clone();
+    request["agent"]["launch"]["env"] = json!({"BUZZ_ACP_WORKSPACE": agent});
+    request["agent"]["launch"]["policy_env"] =
+        json!({"BUZZ_ACP_CHANNEL_WORKSPACES":json!({channel_id:channel}).to_string()});
+    let first = Host::result(host.start(&request));
+    assert_eq!(first["ok"], true);
+    let file = host
+        .root
+        .path()
+        .join("state")
+        .join(first["agent_id"].as_str().unwrap())
+        .join("launch.json");
+    let before = fs::read(&file).unwrap();
+    let snapshot: Value = serde_json::from_slice(&before).unwrap();
+    assert_eq!(
+        snapshot["workspace"],
+        agent.canonicalize().unwrap().to_str().unwrap()
+    );
+    let channels: Value = serde_json::from_str(
+        snapshot["env"]["BUZZ_ACP_CHANNEL_WORKSPACES"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        channels[channel_id],
+        channel.canonicalize().unwrap().to_str().unwrap()
+    );
+    request["agent"]["launch"]["env"]["BUZZ_ACP_WORKSPACE"] = json!(channel);
+    assert_eq!(Host::result(host.start(&request)), first);
+    assert_eq!(fs::read(&file).unwrap(), before);
+    fs::remove_file(host.root.path().join("active")).unwrap();
+    assert_eq!(Host::result(host.start(&request)), first);
+    let updated: Value = serde_json::from_slice(&fs::read(&file).unwrap()).unwrap();
+    assert_eq!(
+        updated["workspace"],
+        channel.canonicalize().unwrap().to_str().unwrap()
+    );
+    fs::remove_file(host.root.path().join("active")).unwrap();
+    request["agent"]["launch"]["policy_env"]["BUZZ_ACP_CHANNEL_WORKSPACES"] =
+        json!(json!({channel_id:host.root.path().join("missing")}).to_string());
+    assert_eq!(Host::result(host.start(&request))["ok"], false);
+    assert_eq!(
+        fs::read_to_string(host.root.path().join("starts")).unwrap(),
+        "start\nstart\n"
+    );
+}

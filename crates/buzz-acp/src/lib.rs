@@ -9132,6 +9132,7 @@ mod build_mcp_servers_tests {
 
     pub(super) fn test_config() -> Config {
         Config {
+            workspaces: Default::default(),
             keys: nostr::Keys::generate(),
             relay_url: "ws://localhost:3000".into(),
             agent_command: "goose".into(),
@@ -9393,6 +9394,7 @@ mod error_outcome_emission_tests {
 
     fn test_config() -> Config {
         Config {
+            workspaces: Default::default(),
             keys: nostr::Keys::generate(),
             relay_url: "ws://localhost:3000".into(),
             // `true` exits cleanly, so the async respawn fails fast and

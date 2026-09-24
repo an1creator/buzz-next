@@ -10,7 +10,7 @@ on:
       version:
         description: 'Buzz Next version (X.Y.Z or X.Y.Z-next.N)'
         required: true
-        default: '0.5.24-next.1'
+        default: '0.5.24-next.2'
         type: string
 permissions:
   contents: read
@@ -60,6 +60,16 @@ jobs:
           cargo build --locked --release --target "$TARGET" -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p git-credential-nostr -p buzz-cli -p buzz-backend-ssh
           scripts/bundle-sidecars.sh "$TARGET"
           cp "target/$TARGET/release/buzz-backend-ssh.exe" "desktop/src-tauri/binaries/buzz-backend-ssh-$TARGET.exe"
+      - name: Test Desktop package
+        shell: bash
+        run: |
+          cd desktop
+          pnpm typecheck
+          pnpm test
+          cargo test --manifest-path src-tauri/Cargo.toml --target "$TARGET"
+        env:
+          CMAKE_POLICY_VERSION_MINIMUM: "3.5"
+          CARGO_PROFILE_TEST_DEBUG: 0
       - name: Build signed updater artifact
         shell: bash
         run: cd desktop && pnpm tauri build --target "$TARGET" --bundles nsis --config src-tauri/tauri.next.conf.json

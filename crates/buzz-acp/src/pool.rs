@@ -830,6 +830,8 @@ pub struct PromptContext {
     /// `None` when `--no-base-prompt` was passed.
     pub base_prompt: Option<String>,
     pub cwd: String,
+    /// Canonical channel folders, frozen for this harness's launch snapshot.
+    pub channel_workspaces: std::collections::BTreeMap<Uuid, String>,
     /// REST client for pre-prompt context fetches (thread/DM history).
     pub rest_client: RestClient,
     /// Shared channel metadata for startup-known and dynamically joined channels.
@@ -1493,6 +1495,16 @@ async fn create_session_and_apply_model(
     agent_core: Option<&str>,
     channel: NewSessionChannelContext<'_>,
 ) -> Result<String, AcpError> {
+    let cwd = channel
+        .scope
+        .filter(|_| channel.channel_type != Some("dm"))
+        .and_then(|scope| ctx.channel_workspaces.get(&scope.channel_id()))
+        .unwrap_or(&ctx.cwd);
+    if !std::path::Path::new(cwd).is_dir() {
+        return Err(AcpError::Protocol(format!(
+            "Working folder is unavailable: {cwd}"
+        )));
+    }
     // Build base_prompt + system_prompt + agent core + canvas metadata into a
     // single prompt. Standard protocol-v2 agents receive it in `session/new`;
     // Goose receives it through the custom request below. Legacy agents receive
@@ -1505,7 +1517,7 @@ async fn create_session_and_apply_model(
             with_core(
                 with_team(
                     framed_system_prompt(
-                        &ctx.cwd,
+                        cwd,
                         ctx.base_prompt.as_deref(),
                         ctx.system_prompt.as_deref(),
                     ),
@@ -1535,7 +1547,7 @@ async fn create_session_and_apply_model(
     let resp = agent
         .acp
         .session_new_full(
-            &ctx.cwd,
+            cwd,
             mcp_servers,
             session_new_system_prompt(
                 is_goose,
@@ -9999,6 +10011,7 @@ printf '%s\n' '{{"jsonrpc":"2.0","id":0,"result":{{"stopReason":"end_turn"}}}}'"
             heartbeat_prompt: None,
             base_prompt: None,
             cwd: ".".to_string(),
+            channel_workspaces: Default::default(),
             rest_client: RestClient {
                 http: reqwest::Client::new(),
                 base_url: "http://127.0.0.1:0".to_string(),
@@ -11352,6 +11365,83 @@ done"#
     // A `model`-category option offering the default model plus the target the
     // agent wants to switch to.
     const OPTS_MODEL_A_AND_B: &str = r#"[{"configId":"model","category":"model","currentValue":"model-a","options":[{"value":"model-a"},{"value":"model-b"}]}]"#;
+
+    #[tokio::test]
+    async fn session_new_pins_channel_workspaces_and_dm_inheritance() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first");
+        let second = root.path().join("second");
+        std::fs::create_dir(&first).unwrap();
+        std::fs::create_dir(&second).unwrap();
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let mut ctx = make_prompt_context_no_owner();
+        ctx.cwd = root.path().to_str().unwrap().into();
+        ctx.channel_workspaces = [
+            (a, first.to_str().unwrap().into()),
+            (b, second.to_str().unwrap().into()),
+        ]
+        .into();
+        for (channel_id, kind, expected) in [
+            (a, "stream", &first),
+            (b, "stream", &second),
+            (a, "dm", &root.path().to_path_buf()),
+        ] {
+            let acp = spawn_switch_acp("[]", r#""result":{}"#).await;
+            let mut agent = switching_agent(acp, "unused");
+            agent.desired_model = None;
+            let observer = observer::ObserverHandle::in_process();
+            agent.acp.set_observer(Some(observer.clone()), 0);
+            let scope = SessionScope::Conversation { channel_id };
+            create_session_and_apply_model(
+                &mut agent,
+                &ctx,
+                None,
+                NewSessionChannelContext {
+                    huddle_instructions: None,
+                    canvas: None,
+                    name: None,
+                    scope: Some(&scope),
+                    channel_type: Some(kind),
+                },
+            )
+            .await
+            .unwrap();
+            let request = observer
+                .snapshot()
+                .into_iter()
+                .find(|e| e.kind == "acp_write" && e.payload["method"] == "session/new")
+                .unwrap()
+                .payload;
+            assert_eq!(request["params"]["cwd"], expected.to_str().unwrap());
+            // An unavailable configured folder must fail before another ACP session.
+            if kind == "stream" {
+                std::fs::remove_dir(expected).unwrap();
+                assert!(create_session_and_apply_model(
+                    &mut agent,
+                    &ctx,
+                    None,
+                    NewSessionChannelContext {
+                        huddle_instructions: None,
+                        canvas: None,
+                        name: None,
+                        scope: Some(&scope),
+                        channel_type: Some(kind),
+                    }
+                )
+                .await
+                .is_err());
+                assert_eq!(
+                    observer
+                        .snapshot()
+                        .iter()
+                        .filter(|e| e.kind == "acp_write" && e.payload["method"] == "session/new")
+                        .count(),
+                    1
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn session_new_sends_policy_specific_base_and_scope_specific_title() {

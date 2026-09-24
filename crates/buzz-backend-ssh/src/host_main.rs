@@ -31,7 +31,9 @@ async fn main() {
         return;
     }
     reply(match operation.as_str() {
-        "info" => Ok(json!({"ok":true,"host_protocol":1,"version":env!("CARGO_PKG_VERSION")})),
+        "info" => Ok(
+            json!({"ok":true,"host_protocol":1,"workspace_protocol":1,"version":env!("CARGO_PKG_VERSION")}),
+        ),
         "deploy" => {
             async {
                 let raw = read_request().await?;
