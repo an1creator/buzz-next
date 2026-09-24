@@ -78,6 +78,7 @@ function WorkingFoldersContent({
       invokeTauri<WorkingFolderTarget[]>("working_folder_targets", scope),
     enabled: Boolean(scope.expectedRelayUrl && scope.expectedSignerPubkey),
     retry: false,
+    refetchOnWindowFocus: false,
   });
   const target =
     targets.data?.find((t) => t.id === selected) ?? targets.data?.[0];
@@ -180,8 +181,9 @@ function ChannelFolderEditor({
   // must never silently replace an edited draft's compare-and-save revision.
   const [snapshot, setSnapshot] = React.useState<ChannelFolder | null>(null);
   React.useEffect(() => {
-    if (!snapshot && query.data?.folder) setSnapshot(query.data.folder);
-  }, [snapshot, query.data]);
+    if (!snapshot && !query.isFetching && query.data?.folder)
+      setSnapshot(query.data.folder);
+  }, [snapshot, query.data, query.isFetching]);
   const value = draft ?? snapshot?.path ?? "";
   const save = async () => {
     if (!query.data || !snapshot || saving) return;
@@ -209,7 +211,7 @@ function ChannelFolderEditor({
   };
   return (
     <div className="space-y-3">
-      {query.isLoading ? (
+      {query.isPending || (!snapshot && query.isFetching) ? (
         <p className="text-sm text-muted-foreground" role="status">
           Checking working folder support…
         </p>
