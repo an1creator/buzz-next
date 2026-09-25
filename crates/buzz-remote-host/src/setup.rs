@@ -12,28 +12,43 @@ pub fn find_executable(name: &str) -> Option<PathBuf> {
         std::env::split_paths(&path)
             .map(|directory| directory.join(name))
             .find(|path| crate::config::executable(path).is_ok())
+            .and_then(|path| {
+                if path.is_absolute() {
+                    Some(path)
+                } else {
+                    std::env::current_dir().ok().map(|cwd| cwd.join(path))
+                }
+            })
     })
 }
 
 /// Prepare a configuration from a versioned bundle and already installed harnesses.
 /// The caller writes it only after the explicit `configure` command.
+#[cfg(unix)]
 pub fn configuration(
     bundle: &Path,
     home: &Path,
     directory: &str,
     relay: &str,
+    shared_codex_socket: Option<&str>,
 ) -> Result<Config, String> {
     let acp_binary = bundle.join("buzz-acp");
     let cli_binary = bundle.join("buzz");
     crate::config::executable(&acp_binary)?;
     crate::config::executable(&cli_binary)?;
+    let shared_codex = shared_codex_socket
+        .map(|socket| crate::codex_connection::binding(bundle, socket))
+        .transpose()?;
     let mut harnesses = Vec::new();
     for metadata in harness_metadata::KNOWN_ACP_RUNTIMES {
-        let Some(executable) = metadata
-            .commands
-            .iter()
-            .find_map(|name| find_executable(name))
-        else {
+        let Some(executable) = (if metadata.id == "codex" && shared_codex.is_some() {
+            Some(bundle.join("buzz-codex-connection"))
+        } else {
+            metadata
+                .commands
+                .iter()
+                .find_map(|name| find_executable(name))
+        }) else {
             continue;
         };
         let cli = metadata.underlying_cli.and_then(find_executable);
@@ -42,7 +57,7 @@ pub fn configuration(
             .iter()
             .map(|arg| (*arg).into())
             .collect();
-        let catalog = AcpRuntimeCatalogEntry {
+        let mut catalog = AcpRuntimeCatalogEntry {
             id: metadata.id.into(),
             label: metadata.label.into(),
             avatar_url: metadata.avatar_url.into(),
@@ -84,16 +99,27 @@ pub fn configuration(
             definition_env: BTreeMap::new(),
             max_parallelism: None,
         };
+        let mut environment: BTreeMap<String, String> = metadata
+            .default_env
+            .iter()
+            .map(|(key, value)| ((*key).into(), (*value).into()))
+            .collect();
+        if metadata.id == "codex" {
+            if let Some(binding) = &shared_codex {
+                environment.extend(binding.clone());
+                catalog.label = "Codex (shared server)".into();
+                catalog.node_required = true;
+                catalog.can_auto_install = false;
+                catalog.login_hint =
+                    Some("Authentication is managed by the server operator.".into());
+            }
+        }
         harnesses.push(Harness {
             catalog,
             executable,
             runtime_id: Some(metadata.id.into()),
             args,
-            environment: metadata
-                .default_env
-                .iter()
-                .map(|(key, value)| ((*key).into(), (*value).into()))
-                .collect(),
+            environment,
         });
     }
     let config = Config {
@@ -116,10 +142,20 @@ pub fn configure(args: &[String]) -> Result<(), String> {
     let home = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is missing")?);
     let binary = std::env::current_exe().map_err(|_| "Cannot locate bundle")?;
     let bundle = binary.parent().ok_or("Cannot locate bundle")?;
-    if args.len() != 4 || args[0] != "--relay" || args[2] != "--directory" {
-        return Err("Usage: buzz-host configure --relay wss://your-community --directory /absolute/existing/folder".into());
+    if !matches!(args.len(), 4 | 6)
+        || args[0] != "--relay"
+        || args[2] != "--directory"
+        || (args.len() == 6 && args[4] != "--codex-socket")
+    {
+        return Err("Usage: buzz-host configure --relay wss://your-community --directory /absolute/existing/folder [--codex-socket /absolute/existing/socket]".into());
     }
-    let config = configuration(bundle, &home, &args[3], &args[1])?;
+    let config = configuration(
+        bundle,
+        &home,
+        &args[3],
+        &args[1],
+        args.get(5).map(String::as_str),
+    )?;
     let parent = home.join(".config/buzz-next");
     std::fs::DirBuilder::new()
         .recursive(true)

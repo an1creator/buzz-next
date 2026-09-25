@@ -17,7 +17,7 @@ from that exact successful GitHub Actions run, extract into a new directory, and
 run `sha256sum -c SHA256SUMS`. Keep that directory immutable while agents use it.
 Do not install an artifact from an untrusted run or bypass a failed checksum.
 
-Make the four binaries executable and create a symlink from
+Make the bundle's five binaries executable and create a symlink from
 `~/.local/bin/buzz-connections-host` to the versioned `buzz-host` binary.
 Run that versioned binary explicitly:
 
@@ -57,3 +57,20 @@ plane. `status` is an explicit recovery operation, never a background poller.
 A repeated accepted request does not resurrect a stopped agent. Concurrent launches
 return the current scope's receipt. The receipt records the applied harness, model
 and folder; it proves handoff, not relay availability.
+
+## Existing shared Codex
+
+An explicit `--codex-socket /absolute/existing/socket` option on `configure` binds
+the Codex entry to `buzz-codex-connection`. The bundle includes the locked
+`@agentclientprotocol/codex-acp@1.10.0` adapter; Node must already be installed.
+The native transport connects to the existing socket and never starts an App Server.
+It translates bounded JSONL and WebSocket messages using the
+[Codex App Server protocol](https://learn.chatgpt.com/docs/app-server#protocol).
+Authentication remains with the server operator: login/logout requests are refused.
+Socket loss is an error, not an automatic replay of a possibly accepted turn.
+
+The operator profile pins `BUZZ_CODEX_SOCKET`, `BUZZ_CODEX_NODE` and
+`BUZZ_CODEX_ACP_SCRIPT` to existing absolute paths. These bindings are hidden from
+the public capability response. They do not define channel folders or replace the
+agent's Execution directory. The socket is a trusted local service, not a security
+boundary between agents sharing the server account.

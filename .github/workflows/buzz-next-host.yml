@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: connections-host-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   host:
     runs-on: ubuntu-24.04
@@ -24,6 +24,10 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.14.1
+          package-manager-cache: false
       - name: Native build dependencies
         run: |
           sudo apt-get update -qq
@@ -38,15 +42,18 @@ jobs:
         run: |
           cargo build --locked --release -p buzz-remote-host -p buzz-acp -p buzz-cli -p buzz-dev-mcp
           mkdir candidate
-          cp target/release/buzz-host target/release/buzz-acp target/release/buzz target/release/buzz-dev-mcp candidate/
+          cp target/release/buzz-host target/release/buzz-codex-connection target/release/buzz-acp target/release/buzz target/release/buzz-dev-mcp candidate/
+          cp -R crates/buzz-remote-host/codex-adapter candidate/codex-adapter
+          npm ci --prefix candidate/codex-adapter --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund
           cp crates/buzz-remote-host/README.md candidate/README.md
           printf '%s\n' "$GITHUB_SHA" > candidate/SOURCE_COMMIT
           printf '%s\n' '{"host_protocol":1,"platform":"linux-x86_64","entrypoint":"buzz-connections-host"}' > candidate/COMPATIBILITY.json
           cd candidate
-          sha256sum buzz-host buzz-acp buzz buzz-dev-mcp README.md SOURCE_COMMIT COMPATIBILITY.json > SHA256SUMS
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: connections-host-${{ github.sha }}
           path: candidate/
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: error

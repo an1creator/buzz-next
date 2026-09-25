@@ -16,10 +16,11 @@ use tokio::process::Command;
 
 fn private_directory(path: &Path) -> Result<(), String> {
     if !path.exists() {
-        std::fs::DirBuilder::new()
-            .mode(0o700)
-            .create(path)
-            .map_err(|_| "Cannot create private host state".to_string())?;
+        match std::fs::DirBuilder::new().mode(0o700).create(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(_) => return Err("Cannot create private host state".into()),
+        }
     }
     let metadata = path
         .symlink_metadata()
