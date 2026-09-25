@@ -1160,15 +1160,18 @@ pub async fn delete_managed_agent(
             // remote deployment. The frontend sends force_remote_delete: true only after
             // the user confirms the orphan warning.
             if let Some(record) = records.iter().find(|r| r.pubkey == pubkey) {
-                if record.backend != BackendKind::Local
-                    && record.backend_agent_id.is_some()
-                    && !force_remote_delete.unwrap_or(false)
-                {
-                    return Err(
-                        "cannot delete a deployed remote agent without force_remote_delete: true"
-                            .to_string(),
-                    );
-                }
+                let uncertain = record.execution.is_some()
+                    && crate::connections::load(&app)?
+                        .launches
+                        .values()
+                        .any(|attempt| {
+                            attempt.scope.agent_pubkey == pubkey && attempt.receipt.is_none()
+                        });
+                super::connections_execution::ensure_deletion_safe(
+                    record,
+                    uncertain,
+                    force_remote_delete.unwrap_or(false),
+                )?;
             }
 
             if !records.iter().any(|record| record.pubkey == pubkey) {
