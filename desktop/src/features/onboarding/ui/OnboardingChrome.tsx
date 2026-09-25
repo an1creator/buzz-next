@@ -1,11 +1,11 @@
 import { BuzzMark } from "@/shared/ui/buzz-logo/BuzzMark";
 
 /**
- * Positions in the first-launch flow: landing, identity/key, harness setup,
- * default config, community choice, community profile, meet the team. Password
+ * Positions in the first-launch flow: landing, identity/key, optional connections,
+ * community choice, community profile, meet the team. Password
  * backup is an optional subview of identity/key, not another position.
  */
-export const TOTAL_ONBOARDING_PAGES = 7;
+export const TOTAL_ONBOARDING_PAGES = 6;
 
 /** Shared pill shape (38px tall) for every onboarding primary CTA. */
 const ONBOARDING_CTA_SHAPE = "h-[2.375rem] rounded-full px-6";

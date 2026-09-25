@@ -385,7 +385,7 @@ export function OnboardingFlow({
   // Machine-level identity, backup, and provider setup have already completed.
   // This relay-scoped flow now owns only the community profile.
   const activeSteps: OnboardingPage[] = ["profile", "avatar"];
-  const STEP_OFFSET = 5;
+  const STEP_OFFSET = 4;
   // key-import occupies the same position as profile.
   const normalizedPage: OnboardingPage =
     currentPage === "key-import" ? "profile" : currentPage;

@@ -123,7 +123,7 @@ export function WelcomeSetup({
       data-testid="welcome-setup"
     >
       <StartupWindowDragRegion />
-      <OnboardingChrome current={5} />
+      <OnboardingChrome current={4} />
       <OnboardingFooterProvider backAction={backAction}>
         <div className="relative flex min-h-0 w-full max-w-[920px] flex-1 flex-col items-center text-center">
           {page === "welcome" ? (

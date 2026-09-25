@@ -74,6 +74,14 @@ async fn lock(config: &Config, scope: &DeploymentScope) -> Result<File, String> 
 }
 
 fn read_snapshot(path: &Path) -> Result<Option<Snapshot>, String> {
+    let metadata = match path.symlink_metadata() {
+        Ok(metadata) => metadata,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err("Cannot inspect launch snapshot".into()),
+    };
+    if !metadata.is_file() || metadata.permissions().mode() & 0o077 != 0 {
+        return Err("Launch snapshot must be a private file, not a symlink".into());
+    }
     let file = match File::open(path) {
         Ok(file) => file,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -200,8 +208,22 @@ pub async fn status(
     if scope.server_id != config.server_id {
         return Err("Server identity changed".into());
     }
+    // Serialize recovery with deploy so an in-flight handoff cannot look stopped.
+    // A fresh host has no state and a status query must remain read-only.
+    if !config.state_directory.exists() {
+        return if active(scope).await? {
+            Err("Service is active without host state; inspect the server".into())
+        } else {
+            Ok(None)
+        };
+    }
+    let _guard = lock(config, scope).await?;
     let Some(snapshot) = read_snapshot(&snapshot_path(config, scope))? else {
-        return Ok(None);
+        return if active(scope).await? {
+            Err("Service is active without a readable snapshot; inspect the server".into())
+        } else {
+            Ok(None)
+        };
     };
     if snapshot.receipt.scope != *scope {
         return Err("Launch scope mismatch".into());
@@ -241,5 +263,27 @@ pub async fn run_snapshot(path: &Path) -> Result<(), String> {
         Ok(())
     } else {
         Err("Agent exited with an error; inspect its service log".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_reader_refuses_shared_permissions_and_symlinks_before_parsing() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("snapshot.json");
+        std::fs::write(&path, "not json").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(read_snapshot(&path).err().unwrap().contains("private file"));
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(
+            read_snapshot(&path).err().unwrap(),
+            "Launch snapshot is invalid"
+        );
+        let link = directory.path().join("link.json");
+        std::os::unix::fs::symlink(&path, &link).unwrap();
+        assert!(read_snapshot(&link).err().unwrap().contains("private file"));
     }
 }
