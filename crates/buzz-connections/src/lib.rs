@@ -9,4 +9,5 @@ pub mod prompt;
 pub mod registry;
 pub mod remote;
 pub mod ssh;
+pub mod ssh_config;
 pub mod wire;

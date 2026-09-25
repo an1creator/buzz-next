@@ -526,6 +526,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_ssh_config_hosts,
+            commands::resolve_ssh_config_host,
             commands::test_execution_connection,
             commands::list_execution_connections,
             commands::save_execution_connection,

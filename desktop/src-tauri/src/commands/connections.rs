@@ -194,3 +194,60 @@ pub async fn test_execution_connection(
     }
     connections::probe::remember(owner, &connection, result)
 }
+
+/// List aliases without running SSH config commands or attempting a network connection.
+#[tauri::command]
+pub fn list_ssh_config_hosts(path: Option<String>) -> Result<serde_json::Value, String> {
+    let home = dirs::home_dir().ok_or("Home directory is unavailable")?;
+    let explicit = path.is_some();
+    let path = path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| home.join(".ssh/config"));
+    let aliases = if !explicit && !path.exists() {
+        Vec::new()
+    } else {
+        buzz_connections::ssh_config::aliases(&path, &home)?
+    };
+    Ok(serde_json::json!({"path":path.to_string_lossy(),"aliases":aliases}))
+}
+
+/// Resolve a user-selected alias through OpenSSH, preserving Include/Match/ProxyJump semantics.
+#[tauri::command]
+pub async fn resolve_ssh_config_host(
+    path: String,
+    alias: String,
+) -> Result<serde_json::Value, String> {
+    use buzz_connections::model::{AgentDefaults, SshEndpoint, Target};
+    let connection = Connection {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: "SSH config".into(),
+        revision: 0,
+        target: Target::Ssh {
+            endpoint: SshEndpoint::Config {
+                path: path.clone(),
+                alias: alias.clone(),
+            },
+        },
+        defaults: AgentDefaults::default(),
+        check: None,
+    };
+    connection.validate()?;
+    let output = buzz_connections::process::run(
+        buzz_connections::ssh::effective_config(&path, &alias),
+        b"",
+        std::time::Duration::from_secs(15),
+    )
+    .await?;
+    if !output.success {
+        return Err("OpenSSH could not resolve this configuration".into());
+    }
+    let text = String::from_utf8(output.stdout)
+        .map_err(|_| "Invalid SSH configuration output".to_string())?;
+    let values: std::collections::BTreeMap<_, _> = text
+        .lines()
+        .filter_map(|line| line.split_once(' '))
+        .collect();
+    Ok(
+        serde_json::json!({"host":values.get("hostname"),"username":values.get("user"),"port":values.get("port")}),
+    )
+}
