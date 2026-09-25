@@ -244,14 +244,6 @@ pub struct AuthenticateArgs {
     after_help = "Commands: run (one local task), models, auth-methods, authenticate.\nUse buzz-acp <COMMAND> --help. With no command, start the conversational service."
 )]
 pub struct CliArgs {
-    /// Default working folder on the execution machine; unset inherits process cwd.
-    #[arg(long, env = "BUZZ_ACP_WORKSPACE")]
-    pub workspace: Option<String>,
-
-    /// Launcher-scoped JSON object of channel UUIDs and absolute working folders.
-    #[arg(long, env = "BUZZ_ACP_CHANNEL_WORKSPACES")]
-    pub channel_workspaces: Option<String>,
-
     #[arg(long, env = "BUZZ_RELAY_URL", default_value = "ws://localhost:3000")]
     pub relay_url: String,
 
@@ -547,8 +539,6 @@ pub struct ChannelFilter {
 
 #[derive(Debug)]
 pub struct Config {
-    /// Immutable working-folder choices resolved on the execution machine.
-    pub workspaces: buzz_workspaces::Workspaces,
     pub keys: Keys,
     pub relay_url: String,
     pub agent_command: String,
@@ -1162,11 +1152,6 @@ impl Config {
         validate_multiple_event_handling(args.multiple_event_handling, args.dedup)?;
 
         let config = Config {
-            workspaces: buzz_workspaces::Workspaces::parse(
-                args.workspace.as_deref(),
-                args.channel_workspaces.as_deref(),
-            )
-            .map_err(ConfigError::ConfigFile)?,
             keys,
             relay_url: args.relay_url,
             agent_command,
@@ -1551,7 +1536,6 @@ mod tests {
     /// Build a minimal Config for testing without CLI parsing.
     fn test_config(mode: SubscribeMode) -> Config {
         Config {
-            workspaces: Default::default(),
             keys: nostr::Keys::generate(),
             relay_url: "ws://localhost:3000".into(),
             agent_command: "goose".into(),

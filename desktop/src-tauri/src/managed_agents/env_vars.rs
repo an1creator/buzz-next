@@ -147,12 +147,6 @@ pub fn validate_user_env_keys(env_vars: &BTreeMap<String, String>) -> Result<(),
             reserved.join(", ")
         ));
     }
-    if let Some(path) = env_vars
-        .get(buzz_workspaces::DEFAULT_ENV)
-        .filter(|p| !p.trim().is_empty())
-    {
-        buzz_workspaces::validate_path_text(path)?;
-    }
     // Value validation. Keep these errors *generic* — values frequently
     // contain secrets and we'd rather not surface even a truncated view.
     let mut total: usize = 0;

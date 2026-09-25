@@ -29,8 +29,6 @@ ARG NPM_REGISTRY=
 
 # ─── Stage 1: cargo-chef base ───────────────────────────────────────────────
 FROM rust:${RUST_VERSION}-${DEBIAN_VERSION} AS chef
-ARG CARGO_BUILD_JOBS=2
-ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}
 # Trust an optional corporate-proxy CA before any network fetch (no-op if unset).
 ARG EXTRA_CA_CERTS
 COPY --chmod=0644 ${EXTRA_CA_CERTS:-Dockerfile} /tmp/extra-ca/src
@@ -130,16 +128,15 @@ RUN pnpm -C web build && pnpm -C admin-web build
 
 # ─── Stage 5: shared runtime ────────────────────────────────────────────────
 FROM debian:${DEBIAN_VERSION}-slim AS runtime-base
-ARG BUZZ_REPOSITORY=https://github.com/block/buzz
 
 # OCI annotations: required for GHCR to auto-link the image to this repo and
 # inherit its visibility. org.opencontainers.image.source is the load-bearing
 # one — without it GHCR keeps the image private even when the repo is public.
 LABEL org.opencontainers.image.title="Buzz" \
       org.opencontainers.image.description="WebSocket relay server for the Buzz communications platform" \
-      org.opencontainers.image.source="${BUZZ_REPOSITORY}" \
-      org.opencontainers.image.url="${BUZZ_REPOSITORY}" \
-      org.opencontainers.image.documentation="${BUZZ_REPOSITORY}#readme" \
+      org.opencontainers.image.source="https://github.com/block/buzz" \
+      org.opencontainers.image.url="https://github.com/block/buzz" \
+      org.opencontainers.image.documentation="https://github.com/block/buzz#readme" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 RUN apt-get update \

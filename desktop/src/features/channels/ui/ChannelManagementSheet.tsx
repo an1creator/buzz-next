@@ -1,4 +1,3 @@
-import { ChannelWorkingFolders } from "./ChannelWorkingFolders";
 import {
   Archive,
   ArchiveRestore,
@@ -814,9 +813,6 @@ function ChannelManagementPanelContent({
                 }
                 value={`${memberCount} member${memberCount === 1 ? "" : "s"}`}
               />
-              {resolvedChannel.channelType !== "dm" ? (
-                <ChannelWorkingFolders channelId={resolvedChannel.id} />
-              ) : null}
               <CopyFieldRow
                 label="Channel ID"
                 testId="channel-management-channel-id"

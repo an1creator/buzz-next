@@ -433,15 +433,3 @@ matches the code is worse than no rule; a new pattern that isn't written down
 here will be broken by the next agent that never learns it existed. Reviewers:
 treat a config-behavior diff without a matching AGENTS.md diff (or an explicit
 "no rules changed" note) as incomplete.
-
-## Working folders
-
-Working-folder controls consume the Rust `get_working_folder_settings` capability,
-not frontend runtime IDs. Agent defaults are Save-gated in the existing env map;
-channel overrides are personal local preferences scoped by owner, canonical relay,
-and execution target. Empty means inheritance. Provider capability failures must
-preserve drafts and show Retry. Remote paths are typed on the client and physically
-validated on the execution host; never use a Windows folder picker for Linux paths.
-Launching captures a snapshot; changing folders never moves an active task.
-See [remote-agent vision](../../../../VISION_REMOTE_AGENTS.md) and
-[working-folder contract](../../../../crates/buzz-workspaces/src/lib.rs).

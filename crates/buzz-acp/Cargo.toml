@@ -20,7 +20,6 @@ path = "src/main.rs"
 buzz-core = { workspace = true }
 buzz-sdk = { workspace = true }
 buzz-persona = { path = "../buzz-persona" }
-buzz-workspaces = { path = "../buzz-workspaces" }
 
 # Git multicall helpers and ephemeral key ownership
 git-credential-nostr = { path = "../git-credential-nostr" }

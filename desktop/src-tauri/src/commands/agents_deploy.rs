@@ -216,7 +216,7 @@ pub(crate) fn build_deploy_payload<R: tauri::Runtime>(
         crate::managed_agents::resolve_effective_harness_descriptor(record, &personas, &global)
             .map_err(|error| crate::managed_agents::user_facing_harness_error(&error))?;
     let owner_pubkey = super::workspace_owner_hex(state)?;
-    let mut launch = build_launch_block_for_policy(
+    let launch = build_launch_block_for_policy(
         record,
         &descriptor,
         &teams,
@@ -226,20 +226,15 @@ pub(crate) fn build_deploy_payload<R: tauri::Runtime>(
         crate::managed_agents::effective_acp_session_policy(record, &personas),
     );
 
-    let relay = crate::relay::effective_agent_relay_url(
-        &record.relay_url,
-        &relay_ws_url_with_override(state),
-    );
-    launch["policy_env"][buzz_workspaces::CHANNELS_ENV] = serde_json::Value::String(
-        crate::managed_agents::workspaces::launch_channels(app, &owner_pubkey, &relay, record)?,
-    );
-
     let effective_parallelism =
         crate::managed_agents::effective_parallelism(&descriptor.command, record.parallelism);
 
     Ok(deploy_payload_json(
         record,
-        relay,
+        crate::relay::effective_agent_relay_url(
+            &record.relay_url,
+            &relay_ws_url_with_override(state),
+        ),
         DeployProjections {
             effective_model: effective.model.value,
             effective_provider: effective.provider.value,

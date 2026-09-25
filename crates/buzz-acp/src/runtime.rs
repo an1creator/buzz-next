@@ -82,10 +82,6 @@ fn make_prompt_context(
 ) -> Result<PromptContext> {
     let base_prompt_content = config.base_prompt_content.as_ref();
     let cwd = current_working_directory()?;
-    let workspaces = config
-        .workspaces
-        .resolve(std::path::Path::new(&cwd))
-        .map_err(anyhow::Error::msg)?;
     Ok(PromptContext {
         mcp_servers: build_mcp_servers(config),
         initial_message: config.initial_message.clone(),
@@ -112,8 +108,7 @@ fn make_prompt_context(
             })
         },
         heartbeat_prompt: config.heartbeat_prompt.clone(),
-        cwd: workspaces.default,
-        channel_workspaces: workspaces.channels,
+        cwd,
         rest_client: rest_client.clone(),
         channel_info: pool::ChannelInfoResolver::new(channels, rest_client),
         context_message_limit: config.context_message_limit,

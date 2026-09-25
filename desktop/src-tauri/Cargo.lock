@@ -1134,7 +1134,6 @@ dependencies = [
  "buzz-sdk",
  "buzz-terminal",
  "buzz-voice",
- "buzz-workspaces",
  "buzz-ws-client",
  "bytes",
  "bzip2 0.6.1",
@@ -1291,15 +1290,6 @@ dependencies = [
  "sherpa-onnx",
  "symphonia",
  "tokenizers",
-]
-
-[[package]]
-name = "buzz-workspaces"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]

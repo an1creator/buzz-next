@@ -945,7 +945,6 @@ dependencies = [
  "buzz-core",
  "buzz-persona",
  "buzz-sdk",
- "buzz-workspaces",
  "chrono",
  "clap",
  "evalexpr",
@@ -1092,26 +1091,6 @@ dependencies = [
  "sha2 0.11.0",
  "tokio",
  "tower",
-]
-
-[[package]]
-name = "buzz-backend-ssh"
-version = "0.1.0"
-dependencies = [
- "buzz-workspaces",
- "fs2",
- "futures-util",
- "hex",
- "nostr 0.44.7",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tempfile",
- "tokio",
- "tokio-tungstenite 0.29.0",
- "tokio-util",
- "url",
- "uuid",
 ]
 
 [[package]]
@@ -1599,16 +1578,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "uuid",
-]
-
-[[package]]
-name = "buzz-workspaces"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tempfile",
  "uuid",
 ]
 

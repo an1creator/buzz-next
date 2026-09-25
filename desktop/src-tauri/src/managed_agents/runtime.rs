@@ -784,16 +784,6 @@ pub fn spawn_agent_child(
     super::apply_acp_session_policy_env(&mut command, acp_session_policy);
 
     crate::build_identity::apply_demo_config_home(&mut command)?;
-    command.env(
-        buzz_workspaces::CHANNELS_ENV,
-        match owner_hex {
-            Some(owner) => {
-                super::workspaces::launch_channels(app, owner, &effective_relay_url, record)?
-            }
-            None => "{}".to_string(),
-        },
-    );
-
     // Publish-first replay floor: written AFTER the `descriptor.env` loop, the
     // same post-loop authority ordering the A1 model write uses. This send's
     // floor is invocation state and must win over a saved
