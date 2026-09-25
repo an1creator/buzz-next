@@ -194,6 +194,13 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
             generation: uuid::Uuid::new_v4().to_string(),
             directory,
             harness_id: request.harness_id.clone(),
+            harness_label: harness.catalog.label.clone(),
+            model: harness
+                .catalog
+                .model_env_var
+                .as_ref()
+                .and_then(|key| environment.get(key))
+                .cloned(),
             state: LaunchState::Starting,
         },
         acp_binary: config.acp_binary.clone(),

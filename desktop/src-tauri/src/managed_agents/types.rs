@@ -505,6 +505,8 @@ pub struct ManagedAgentRecord {
 
 #[derive(Debug)]
 pub struct ManagedAgentProcess {
+    /// Actual resolved directory passed to this process at launch.
+    pub execution_directory: Option<String>,
     pub child: Child,
     pub log_path: PathBuf,
     /// The effective spawn config this process was launched with (see

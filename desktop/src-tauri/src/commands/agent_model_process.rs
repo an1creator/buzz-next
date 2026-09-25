@@ -14,9 +14,7 @@ pub(super) async fn run_agent_models_command(
     persisted_model: Option<String>,
     merged_env: BTreeMap<String, String>,
 ) -> Result<AgentModelsResponse, String> {
-    // Clone the env map for redaction below — `merged_env` is moved
-    // into the spawn_blocking closure and we still need the values to
-    // scrub any user-supplied secrets that the child surfaces in stderr.
+    // Keep the values available for redaction of subprocess diagnostics.
     let env_for_redaction = merged_env.clone();
 
     let mut cmd = std::process::Command::new(&resolved_acp);

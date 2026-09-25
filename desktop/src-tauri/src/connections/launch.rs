@@ -16,6 +16,7 @@ use tauri::AppHandle;
 /// Durable, secret-free recovery record. A timeout never erases the request identity.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct Attempt {
+    pub scope: DeploymentScope,
     pub request_id: String,
     pub execution: Execution,
     pub receipt: Option<LaunchReceipt>,
@@ -240,6 +241,7 @@ pub(crate) async fn start(
         store.launches.insert(
             scope_key.clone(),
             Attempt {
+                scope: scope.clone(),
                 request_id: id.clone(),
                 execution: execution.clone(),
                 receipt: None,
@@ -273,14 +275,33 @@ fn record_receipt(
     store.launches.insert(
         key.into(),
         Attempt {
+            scope: receipt.scope.clone(),
             request_id: receipt.request_id.clone(),
             execution,
             receipt: Some(receipt.clone()),
         },
     );
     super::persist(app, &store)?;
+    // Recovery bookkeeping is durable even if the UI identity changes. Do not
+    // apply that receipt to another active identity/community or reassigned instance.
+    crate::relay::assert_expected_signer(
+        Some(&receipt.scope.owner_pubkey),
+        &crate::commands::agents::workspace_owner_hex(state)?,
+    )?;
+    crate::relay::assert_expected_relay_scope(
+        Some(&receipt.scope.relay_url),
+        &crate::relay::relay_api_base_url_with_override(state),
+    )?;
     let mut records = managed_agents::load_managed_agents(app)?;
     let record = managed_agents::find_managed_agent_mut(&mut records, pubkey)?;
+    if record.execution.as_ref().map(|value| &value.connection_id)
+        != store
+            .launches
+            .get(key)
+            .map(|attempt| &attempt.execution.connection_id)
+    {
+        return Err("Agent assignment changed. Launch receipt retained for recovery.".into());
+    }
     record.backend_agent_id = if matches!(receipt.state, LaunchState::Stopped | LaunchState::Failed)
     {
         None

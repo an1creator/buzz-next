@@ -533,6 +533,7 @@ pub fn run() {
             commands::execution_connection_dependents,
             commands::validate_execution_directory,
             commands::get_connection_models,
+            commands::get_agent_execution_status,
             commands::cancel_execution_connection_check,
             commands::list_execution_connections,
             commands::save_execution_connection,

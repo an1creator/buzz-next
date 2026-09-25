@@ -36,7 +36,13 @@ pub fn set_agent_execution(
     }
     let changed_machine = record.execution.as_ref().map(|value| &value.connection_id)
         != Some(&execution.connection_id);
-    if changed_machine && (record.runtime_pid.is_some() || record.backend_agent_id.is_some()) {
+    let uncertain_launch = crate::connections::load(&app)?
+        .launches
+        .values()
+        .any(|attempt| attempt.scope.agent_pubkey == pubkey && attempt.receipt.is_none());
+    if changed_machine
+        && (record.runtime_pid.is_some() || record.backend_agent_id.is_some() || uncertain_launch)
+    {
         return Err(
             "Stop this agent and confirm its stopped state before changing connections.".into(),
         );

@@ -81,7 +81,7 @@ macro_rules! windows_install_command {
 
 #[cfg(test)]
 mod tests {
-    use crate::managed_agents::known_acp_runtime_exact;
+    use crate::harness_metadata::by_id as known_acp_runtime_exact;
 
     /// Every runtime that ships a Windows install command. `cli_install_commands_windows`
     /// is read directly rather than through `cli_install_commands_for_os()` so these

@@ -30,6 +30,9 @@ pub struct Config {
 pub struct Harness {
     pub catalog: AcpRuntimeCatalogEntry,
     pub executable: PathBuf,
+    /// Canonical capability source for a builtin variant; absent for custom profiles.
+    #[serde(default)]
+    pub runtime_id: Option<String>,
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
@@ -88,6 +91,43 @@ impl Config {
             default_directory: self.directory(&WorkingDirectory::Automatic)?,
             harnesses,
         })
+    }
+
+    /// Read-only bounded authentication probes; no credential files are read by the host.
+    pub async fn inspect(&self) -> Result<HostInfo, String> {
+        use buzz_connections::{catalog::AuthStatus, harness_metadata};
+        let mut info = self.info()?;
+        for (harness, catalog) in self.harnesses.iter().zip(&mut info.harnesses) {
+            let metadata = harness
+                .runtime_id
+                .as_deref()
+                .and_then(harness_metadata::by_id);
+            if let Some(metadata) = metadata {
+                if let Some(probe) = metadata.auth_probe_args {
+                    catalog.auth_status = AuthStatus::Unknown;
+                    if let Some((binary, args)) = probe.split_first() {
+                        if let Some(binary) = crate::setup::find_executable(binary) {
+                            let mut command = tokio::process::Command::new(binary);
+                            command.args(args).envs(&harness.environment);
+                            if let Ok(output) = buzz_connections::process::run(
+                                command,
+                                b"",
+                                std::time::Duration::from_secs(8),
+                            )
+                            .await
+                            {
+                                catalog.auth_status = if output.success {
+                                    AuthStatus::LoggedIn
+                                } else {
+                                    AuthStatus::LoggedOut
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(info)
     }
 
     /// Resolve on the host. Explicit invalid paths never fall back or create directories.

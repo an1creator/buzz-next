@@ -10,6 +10,7 @@ import {
   isManagedAgentActive,
 } from "@/features/agents/lib/managedAgentControlActions";
 import { RestartDiffBadge } from "@/features/agents/ui/RestartDiffBadge";
+import { AgentExecutionSummary } from "@/features/connections/AgentExecutionSummary";
 import { AgentConfigPanel } from "@/features/agents/ui/AgentConfigPanel";
 import type { IdentityArchiveActions } from "@/features/identity-archive/hooks";
 import { getPresenceLabel } from "@/features/presence/lib/presence";
@@ -534,6 +535,9 @@ export function ProfileSummaryView({
             ) : null}
             {activeTab === "runtime" ? (
               <div className="space-y-4">
+                {isOwner === true && managedAgent && (
+                  <AgentExecutionSummary agent={managedAgent} />
+                )}
                 <ProfileRuntimeTabContent
                   autoRestartEnabled={
                     managedAgent?.autoRestartOnConfigChange ?? false

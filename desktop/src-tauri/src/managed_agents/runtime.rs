@@ -599,12 +599,14 @@ pub fn spawn_agent_child(
     );
 
     let mut command = std::process::Command::new(&resolved_acp_command);
-    if let Some(execution) = &record.execution {
-        command.current_dir(crate::connections::directory::local_directory(
+    let execution_directory = match &record.execution {
+        Some(execution) => Some(crate::connections::directory::local_directory(
             &execution.directory,
-        )?);
-    } else if let Some(home) = super::default_agent_workdir() {
-        command.current_dir(home);
+        )?),
+        None => super::default_agent_workdir().map(|path| path.to_string_lossy().into_owned()),
+    };
+    if let Some(directory) = &execution_directory {
+        command.current_dir(directory);
     }
     command.stdin(std::process::Stdio::null());
     command.stdout(std::process::Stdio::from(stdout));
@@ -878,17 +880,22 @@ pub fn spawn_agent_child(
     // Windows: assign the harness to a Job Object so its whole tree dies with
     // the handle. The Unix process-group equivalent is set above.
     #[cfg(windows)]
-    return Ok(super::process_lifecycle::finish_spawn(
-        child,
-        log_path,
-        spawn_config,
-        spawned_setup_mode,
-        spawned_adapter_availability,
-        start_nonce,
-        &record.name,
-    ));
+    {
+        let mut process = super::process_lifecycle::finish_spawn(
+            child,
+            log_path,
+            spawn_config,
+            spawned_setup_mode,
+            spawned_adapter_availability,
+            start_nonce,
+            &record.name,
+        );
+        process.execution_directory = execution_directory;
+        return Ok(process);
+    }
     #[cfg(not(windows))]
     Ok(crate::managed_agents::ManagedAgentProcess {
+        execution_directory,
         child,
         log_path,
         spawn_config,

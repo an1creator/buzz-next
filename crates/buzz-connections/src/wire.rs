@@ -41,6 +41,10 @@ pub struct LaunchReceipt {
     pub generation: String,
     pub directory: String,
     pub harness_id: String,
+    #[serde(default)]
+    pub harness_label: String,
+    #[serde(default)]
+    pub model: Option<String>,
     pub state: LaunchState,
 }
 

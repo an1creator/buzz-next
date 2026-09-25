@@ -196,6 +196,7 @@ pub fn finish_spawn(
         );
     }
     super::ManagedAgentProcess {
+        execution_directory: None,
         child,
         log_path,
         spawn_config,

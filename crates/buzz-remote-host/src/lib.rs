@@ -3,5 +3,6 @@
 pub mod config;
 pub mod launch;
 pub mod models;
+pub mod setup;
 #[cfg(unix)]
 pub mod supervisor;

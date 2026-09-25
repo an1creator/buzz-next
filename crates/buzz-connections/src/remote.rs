@@ -35,7 +35,7 @@ pub async fn call(
         .await
         .map_err(|_| failed("Cannot open the credential prompt"))?;
     let mut command = ssh::command(endpoint, helper);
-    command.arg("exec \"$HOME/.local/bin/buzz-host\" connections");
+    command.arg("exec \"$HOME/.local/bin/buzz-connections-host\" connections");
     bridge.configure(&mut command);
     let payload = zeroize::Zeroizing::new(
         serde_json::to_vec(request).map_err(|_| failed("Cannot encode server request"))?,
@@ -67,7 +67,7 @@ pub async fn call(
             CheckOutcome::HostKeyChanged
         } else if stderr.contains("Permission denied") {
             CheckOutcome::AuthenticationRequired
-        } else if stderr.contains("buzz-host")
+        } else if stderr.contains("buzz-connections-host")
             && (stderr.contains("not found") || stderr.contains("No such file"))
         {
             CheckOutcome::SetupRequired
@@ -82,6 +82,12 @@ pub async fn call(
     let response: Value = serde_json::from_slice(&output.stdout)
         .map_err(|_| failed("Server returned an invalid response. Check its Buzz installation."))?;
     if response.get("ok") != Some(&Value::Bool(true)) {
+        if response.get("error").and_then(Value::as_str) == Some("Server setup is required") {
+            return Err(Failure {
+                outcome: CheckOutcome::SetupRequired,
+                trust_prompt: None,
+            });
+        }
         return Err(failed(
             response
                 .get("error")

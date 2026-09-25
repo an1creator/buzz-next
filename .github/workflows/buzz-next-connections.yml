@@ -39,6 +39,11 @@ jobs:
         run: |
           python -m pip install paramiko==4.0.0
           cargo +stable test --locked -p buzz-connections -- --include-ignored
+      - name: Host package checks
+        if: runner.os == 'Linux'
+        run: |
+          cargo +stable test --locked -p buzz-remote-host
+          cargo +stable clippy --locked -p buzz-remote-host --all-targets -- -D warnings
       - name: Isolated OpenSSH integration
         if: runner.os == 'Linux'
         run: |

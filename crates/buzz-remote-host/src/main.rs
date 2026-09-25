@@ -64,9 +64,8 @@ async fn respond() -> Result<serde_json::Value, String> {
     let request: InspectRequest =
         serde_json::from_value(raw).map_err(|_| "Unknown host operation".to_string())?;
     match request {
-        InspectRequest::Info {} => {
-            serde_json::to_value(config.info()?).map_err(|_| "Cannot encode host info".into())
-        }
+        InspectRequest::Info {} => serde_json::to_value(config.inspect().await?)
+            .map_err(|_| "Cannot encode host info".into()),
         InspectRequest::Models {
             protocol,
             harness_id,

@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod catalog;
+pub mod harness_metadata;
 pub mod model;
 pub mod process;
 pub mod prompt;

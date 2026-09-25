@@ -20,7 +20,7 @@ never its portable persona. Connection defaults affect new drafts only.
 ## The one rule
 
 **Harness capability facts have exactly one source: the Rust runtime catalog.**
-`KnownAcpRuntime` (`desktop/src-tauri/src/managed_agents/discovery/runtime_metadata.rs`)
+`KnownAcpRuntime` (`crates/buzz-connections/src/harness_metadata/`; re-exported by Desktop discovery)
 declares each harness's model/provider/effort env keys and capabilities. Spawn
 applies them; `AcpRuntimeCatalogEntry` exposes them over IPC; and
 `lib/agentConfigCore.ts` projects them into field descriptors. The frontend

@@ -24,6 +24,7 @@ fn config(directory: &Path) -> Config {
         harnesses: vec![Harness {
             catalog,
             executable: "/bin/true".into(),
+            runtime_id: None,
             args: vec![],
             environment: BTreeMap::new(),
         }],
