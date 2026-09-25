@@ -1,5 +1,5 @@
 //! Native SSH handoff: negotiate, freeze one request, then rely on relay presence.
-use super::{credentials, probe, Store};
+use super::{probe, Store};
 use crate::{
     app_state::AppState,
     managed_agents::{self, ManagedAgentRecord, ManagedAgentSummary},
@@ -67,6 +67,10 @@ fn current(
     execution.validate(&connection)?;
     Ok((record, connection, store))
 }
+pub(crate) enum Action {
+    Start,
+    ConfirmStopped,
+}
 /// Called only for an explicit Start. No reconnect loop or background SSH polling.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn start(
@@ -77,6 +81,7 @@ pub(crate) async fn start(
     expected_relay: &str,
     expected_owner: &str,
     replay_floor: Option<u64>,
+    action: Action,
 ) -> Result<ManagedAgentSummary, String> {
     let lock = {
         let mut locks = state
@@ -101,7 +106,7 @@ pub(crate) async fn start(
         Some(expected_relay),
         &crate::relay::relay_api_base_url_with_override(state),
     )?;
-    let mut answers = credentials::answers(&store, &owner, &connection.id)?;
+    let mut answers = probe::answers_for_input(&store, &owner, &connection.id, &input)?;
     if !input.password.is_empty() {
         answers.password = zeroize::Zeroizing::new(input.password.clone());
     }
@@ -160,10 +165,17 @@ pub(crate) async fn start(
             if receipt.scope != scope {
                 return Err("Launch status belongs to another scope".into());
             }
-            if matches!(
-                receipt.state,
-                LaunchState::Running | LaunchState::Starting | LaunchState::Unconfirmed
-            ) || previous.receipt.is_none()
+            if matches!(action, Action::ConfirmStopped)
+                && !matches!(receipt.state, LaunchState::Stopped | LaunchState::Failed)
+            {
+                return Err("This instance is still running. Stop it through Buzz before changing connections.".into());
+            }
+            if matches!(action, Action::ConfirmStopped)
+                || matches!(
+                    receipt.state,
+                    LaunchState::Running | LaunchState::Starting | LaunchState::Unconfirmed
+                )
+                || previous.receipt.is_none()
             {
                 return record_receipt(
                     app,
@@ -175,6 +187,9 @@ pub(crate) async fn start(
                 );
             }
         }
+    }
+    if matches!(action, Action::ConfirmStopped) {
+        return Err("No confirmed launch record is available. Recover this agent's launch status before changing connections.".into());
     }
     let harness = info
         .harnesses

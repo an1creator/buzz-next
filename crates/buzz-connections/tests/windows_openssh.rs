@@ -140,4 +140,44 @@ async fn windows_openssh_password_encrypted_key_and_config() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(output.stdout, b"BUZZ_WINDOWS_SSH_OK");
+    // The CI runner starts the Windows OpenSSH Authentication Agent service.
+    // Add/remove only this disposable identity, never clear the user's agent.
+    let agent_key = dir.path().join("agent fixture key");
+    std::fs::copy(&key, &agent_key).unwrap();
+    assert!(Command::new("ssh-keygen")
+        .args(["-p", "-P", "fixture-passphrase", "-N", "", "-f"])
+        .arg(&agent_key)
+        .output()
+        .unwrap()
+        .status
+        .success());
+    assert!(Command::new("ssh-add")
+        .arg(&agent_key)
+        .output()
+        .unwrap()
+        .status
+        .success());
+    struct AgentKey(std::path::PathBuf);
+    impl Drop for AgentKey {
+        fn drop(&mut self) {
+            let _ = Command::new("ssh-add").arg("-d").arg(&self.0).output();
+        }
+    }
+    let _agent_key = AgentKey(agent_key);
+    let endpoint = SshEndpoint::Manual {
+        host: "127.0.0.1".into(),
+        port,
+        username: "fixture".into(),
+        authentication: Authentication::Agent {},
+    };
+    let bridge = PromptBridge::start(Answers::default()).await.unwrap();
+    let output = process::run(build(&endpoint, &bridge), b"", Duration::from_secs(20))
+        .await
+        .unwrap();
+    assert!(
+        output.success,
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"BUZZ_WINDOWS_SSH_OK");
 }

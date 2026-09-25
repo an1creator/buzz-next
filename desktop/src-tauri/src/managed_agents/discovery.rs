@@ -15,6 +15,10 @@ pub(crate) mod command_search;
 mod login_shell;
 mod presets;
 mod runtime_metadata;
+#[cfg(test)]
+use buzz_connections::harness_metadata::BUZZ_AGENT_AVATAR_URL;
+#[cfg(test)]
+mod avatar_tests;
 pub(crate) use catalog::KNOWN_ACP_RUNTIMES;
 pub use login_shell::{find_nvm_default_bin, login_shell_path};
 pub(crate) use login_shell::{find_via_login_shell, refresh_login_shell_path};

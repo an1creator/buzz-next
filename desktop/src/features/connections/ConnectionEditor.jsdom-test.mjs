@@ -159,3 +159,35 @@ test("an unknown server requires an explicit trust action", async () => {
     "exact native prompt",
   ]);
 });
+
+test("editing saved credentials preserves them unless explicitly changed", async () => {
+  const draft = { ...connection(), revision: 3 };
+  let saved;
+  handler = (command, args) => {
+    if (command === "execution_connection_has_credentials") return true;
+    assert.equal(command, "save_execution_connection");
+    assert.equal(
+      args.credentials,
+      null,
+      "unchanged credential fields must not erase a saved secret",
+    );
+    return { ...args.connection, revision: 4 };
+  };
+  await mount({
+    initial: draft,
+    onSaved(value) {
+      saved = value;
+    },
+    onCancel() {},
+  });
+  assert.equal(
+    container.querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+    "true",
+  );
+  await click("Save connection");
+  assert.equal(saved.revision, 4);
+  assert.deepEqual(
+    calls.map((call) => call.command),
+    ["execution_connection_has_credentials", "save_execution_connection"],
+  );
+});

@@ -9,6 +9,17 @@ use std::{
 #[tokio::main]
 async fn main() {
     #[cfg(unix)]
+    if std::env::args().nth(1).as_deref() == Some("configure") {
+        match buzz_remote_host::setup::configure(&std::env::args().skip(2).collect::<Vec<_>>()) {
+            Ok(()) => println!("Server configured. Test the connection in Buzz."),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
+    #[cfg(unix)]
     if std::env::args().nth(1).as_deref() == Some("run-snapshot") {
         let result = match std::env::args().nth(2) {
             Some(path) => buzz_remote_host::supervisor::run_snapshot(&PathBuf::from(path)).await,

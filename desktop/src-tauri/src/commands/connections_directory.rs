@@ -33,7 +33,8 @@ pub async fn validate_execution_directory(
         if connection.revision != expected_revision {
             return Err("Connection changed. Reload and try again.".into());
         }
-        let answers = connections::credentials::answers(&store, &owner, &connection_id)?;
+        let answers =
+            connections::probe::answers_for_input(&store, &owner, &connection_id, &input)?;
         (connection, answers)
     };
     Execution {

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { invokeTauri } from "@/shared/api/tauri";
 import { Button } from "@/shared/ui/button";
 import {
   saveExecutionConnection,
@@ -38,6 +39,28 @@ export function ConnectionEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const probe = useConnectionProbe();
+  const [credentialsLoading, setCredentialsLoading] = useState(
+    Boolean(initial?.revision && initial.target.type === "ssh"),
+  );
+  useEffect(() => {
+    if (!initial?.revision || initial.target.type !== "ssh") return;
+    let active = true;
+    void invokeTauri<boolean>("execution_connection_has_credentials", {
+      id: initial.id,
+    })
+      .then((remember) => {
+        if (active) setCredentials((current) => ({ ...current, remember }));
+      })
+      .catch((error) => {
+        if (active) setError(String(error));
+      })
+      .finally(() => {
+        if (active) setCredentialsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [initial]);
   function update(value: ExecutionConnection) {
     probe.invalidate();
     setError(null);
@@ -113,7 +136,10 @@ export function ConnectionEditor({
             : "Launch agents on a server. They continue running when Buzz is closed."}
         </p>
       </div>
-      <fieldset className="space-y-4" disabled={saving || probe.pending}>
+      <fieldset
+        className="space-y-4"
+        disabled={saving || probe.pending || credentialsLoading}
+      >
         <TextField
           label="Name"
           value={draft.name}
@@ -170,7 +196,9 @@ export function ConnectionEditor({
         )}
         <Button
           type="button"
-          disabled={saving || probe.pending || !draft.name.trim()}
+          disabled={
+            saving || probe.pending || credentialsLoading || !draft.name.trim()
+          }
           onClick={() => void save()}
         >
           {saving ? "Saving…" : "Save connection"}

@@ -1,3 +1,4 @@
+import { createConnectionMock } from "./e2eBridgeConnections";
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12004,6 +12005,7 @@ export function maybeInstallE2eTauriMocks() {
       sourceUrl: null;
     };
   }> = [];
+  const connectionMock = createConnectionMock();
   const handleMockCommand = async (
     command: string,
     payload: unknown,
@@ -12026,6 +12028,8 @@ export function maybeInstallE2eTauriMocks() {
       payload: loggedPayload,
     });
     window.__BUZZ_E2E_COMMAND_LOG__?.push({ command, payload });
+    if (connectionMock.handles(command))
+      return connectionMock.invoke(command, payload);
 
     switch (command) {
       case "get_huddle_state": {

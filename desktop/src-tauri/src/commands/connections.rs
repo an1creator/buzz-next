@@ -21,7 +21,7 @@ pub fn list_execution_connections(
 pub fn save_execution_connection(
     connection: Connection,
     expected_revision: Option<u64>,
-    credentials: Option<connections::SavedCredentials>,
+    mut credentials: Option<connections::SavedCredentials>,
     check_ticket: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
@@ -39,6 +39,22 @@ pub fn save_execution_connection(
         .iter()
         .find(|item| item.id == connection.id)
         .cloned();
+    // Blank fields mean keep the corresponding saved secret when Remember is on.
+    if let Some(value) = credentials.as_mut().filter(|value| value.remember) {
+        if old
+            .as_ref()
+            .is_some_and(|old| old.target == connection.target)
+            && (value.password.is_empty() || value.passphrase.is_empty())
+        {
+            let existing = connections::credentials::answers(&store, &owner, &connection.id)?;
+            if value.password.is_empty() {
+                value.password = existing.password.to_string();
+            }
+            if value.passphrase.is_empty() {
+                value.passphrase = existing.passphrase.to_string();
+            }
+        }
+    }
     let mut registry = store.registry.clone();
     let mut saved = registry.save(connection, expected_revision)?;
     if credentials.is_some() {
@@ -185,7 +201,7 @@ pub async fn test_execution_connection(
             .iter()
             .any(|item| item.id == connection.id && item.target == connection.target)
         {
-            connections::credentials::answers(&store, &owner, &connection.id)?
+            connections::probe::answers_for_input(&store, &owner, &connection.id, &input)?
         } else {
             buzz_connections::prompt::Answers::default()
         }
@@ -305,4 +321,30 @@ pub fn execution_connection_dependents(
         })
         .map(|record| serde_json::json!({"name":record.name,"pubkey":record.pubkey}))
         .collect())
+}
+
+/// Report only whether this identity has a saved credential binding, never its contents.
+#[tauri::command]
+pub fn execution_connection_has_credentials(
+    id: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let owner = super::agents::workspace_owner_hex(&state)?;
+    let _guard = state
+        .managed_agents_store_lock
+        .lock()
+        .map_err(|e| e.to_string())?;
+    Ok(connections::load(&app)?
+        .credentials
+        .contains_key(&connections::credential_scope(&owner, &id)))
+}
+
+/// Version-pinned setup documentation for this Desktop build. No installer is executed.
+#[tauri::command]
+pub fn connection_setup_guidance() -> serde_json::Value {
+    let source = option_env!("BUZZ_NEXT_SOURCE_COMMIT")
+        .filter(|value| value.len() == 40 && value.bytes().all(|c| c.is_ascii_hexdigit()));
+    serde_json::json!({"source":source,"protocol":buzz_connections::wire::HOST_PROTOCOL,
+        "instructions_url":source.map(|source| format!("https://github.com/an1creator/buzz-next/blob/{source}/crates/buzz-remote-host/README.md"))})
 }

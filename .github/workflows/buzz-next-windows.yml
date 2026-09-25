@@ -18,6 +18,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 120
     env:
+      BUZZ_NEXT_SOURCE_COMMIT: ${{ github.sha }}
       TARGET: x86_64-pc-windows-msvc
       VERSION: ${{ inputs.version }}
       CARGO_BUILD_JOBS: 2

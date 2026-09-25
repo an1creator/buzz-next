@@ -75,6 +75,8 @@ impl Config {
         for harness in &self.harnesses {
             let mut catalog = harness.catalog.clone();
             catalog.definition_env.clear();
+            // Operator arguments may contain credentials; only the host consumes them.
+            catalog.default_args.clear();
             catalog.can_auto_install = false;
             if executable(&harness.executable).is_err()
                 || executable(&self.acp_binary).is_err()

@@ -966,7 +966,9 @@ export function AppShell() {
                   )}
                   <RequestedAgentCreateDialogs />
                   <AgentManagementDialogs />
-                  <ConnectionLaunchPrompt key={`${communitiesHook.activeCommunity?.id}:${communitiesHook.reinitKey}`} />
+                  <ConnectionLaunchPrompt
+                    key={`${communitiesHook.activeCommunity?.id}:${communitiesHook.reinitKey}`}
+                  />
                   <AppShellOverlays
                     activeChannel={managedChannel}
                     browseDialogType={browseDialogType}

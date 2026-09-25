@@ -108,3 +108,56 @@ pub fn configuration(
     config.directory(&buzz_connections::model::WorkingDirectory::Automatic)?;
     Ok(config)
 }
+
+/// Explicit setup command. Existing identity and operator profiles are never overwritten.
+#[cfg(unix)]
+pub fn configure(args: &[String]) -> Result<(), String> {
+    use std::{io::Write, os::unix::fs::DirBuilderExt, os::unix::fs::PermissionsExt};
+    let home = PathBuf::from(std::env::var_os("HOME").ok_or("HOME is missing")?);
+    let binary = std::env::current_exe().map_err(|_| "Cannot locate bundle")?;
+    let bundle = binary.parent().ok_or("Cannot locate bundle")?;
+    if args.len() != 4 || args[0] != "--relay" || args[2] != "--directory" {
+        return Err("Usage: buzz-host configure --relay wss://your-community --directory /absolute/existing/folder".into());
+    }
+    let config = configuration(bundle, &home, &args[3], &args[1])?;
+    let parent = home.join(".config/buzz-next");
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&parent)
+        .map_err(|_| "Cannot create configuration directory")?;
+    let path = parent.join("connections-host.json");
+    use std::os::unix::fs::OpenOptionsExt;
+    let lock = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(parent.join("connections-setup.lock"))
+        .map_err(|_| "Cannot lock server configuration")?;
+    fs2::FileExt::try_lock_exclusive(&lock).map_err(|_| "Another setup is in progress")?;
+    if path.exists() {
+        return Err("Configuration already exists; existing profiles are preserved".into());
+    }
+    let mut file = atomic_write_file::AtomicWriteFile::open(&path)
+        .map_err(|_| "Cannot prepare configuration")?;
+    file.set_permissions(std::fs::Permissions::from_mode(0o600))
+        .map_err(|_| "Cannot restrict configuration")?;
+    let bytes = serde_json::to_vec_pretty(&config).map_err(|_| "Cannot encode configuration")?;
+    file.write_all(&bytes)
+        .map_err(|_| "Cannot save configuration")?;
+    // State is separate from immutable bundles. No agent working folder is created.
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&config.state_directory)
+        .map_err(|_| "Cannot prepare private host state")?;
+    std::fs::set_permissions(
+        &config.state_directory,
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .map_err(|_| "Cannot restrict host state")?;
+    file.commit().map_err(|_| "Cannot commit configuration")?;
+    Ok(())
+}

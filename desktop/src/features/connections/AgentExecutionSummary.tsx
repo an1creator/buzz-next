@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { confirmExecutionStopped } from "@/shared/api/tauriManagedAgents";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { invokeTauri } from "@/shared/api/tauri";
 import type { ManagedAgent } from "@/shared/api/types";
@@ -20,6 +22,22 @@ type ExecutionStatus = {
 };
 export function AgentExecutionSummary({ agent }: { agent: ManagedAgent }) {
   const identity = useIdentityQuery();
+  const client = useQueryClient();
+  const [checking, setChecking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function confirmStopped() {
+    setChecking(true);
+    setError(null);
+    try {
+      await confirmExecutionStopped(agent.pubkey);
+      await client.invalidateQueries({ queryKey: ["managed-agents"] });
+      await client.invalidateQueries({ queryKey: ["agent-execution-status"] });
+    } catch (error) {
+      setError(String(error));
+    } finally {
+      setChecking(false);
+    }
+  }
   const query = useQuery({
     queryKey: [
       "agent-execution-status",
@@ -107,6 +125,28 @@ export function AgentExecutionSummary({ agent }: { agent: ManagedAgent }) {
         <p role="status" className="text-sm">
           Saved execution changes apply on next start. This launch keeps its
           existing configuration.
+        </p>
+      )}
+      {status.remote && (
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={checking}
+            onClick={() => void confirmStopped()}
+          >
+            {checking ? "Checking server…" : "Confirm stopped state"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            After stopping this agent through Buzz, confirm its stopped state
+            before assigning another connection.
+          </p>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
         </p>
       )}
     </section>

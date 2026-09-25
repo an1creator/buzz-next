@@ -1,5 +1,6 @@
 import type { ConnectionProbe } from "@/shared/api/tauriConnections";
 import { Button } from "@/shared/ui/button";
+import { ServerSetupInstructions } from "./ServerSetupInstructions";
 import { connectionStatus } from "./connectionPresentation";
 export function ConnectionCheckResult({
   result,
@@ -39,6 +40,13 @@ export function ConnectionCheckResult({
           Buzz has not changed your known-hosts file. Verify the new identity
           before updating your SSH trust settings.
         </p>
+      )}
+      {["setup_required", "update_required"].includes(
+        result.check.outcome.status,
+      ) && (
+        <ServerSetupInstructions
+          update={result.check.outcome.status === "update_required"}
+        />
       )}
       {result.harnesses.length > 0 && (
         <ul className="space-y-2">

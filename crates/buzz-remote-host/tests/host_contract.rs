@@ -65,6 +65,7 @@ fn discovery_is_read_only_and_does_not_expose_profile_environment() {
         .catalog
         .definition_env
         .insert("API_TOKEN".into(), "fixture-secret".into());
+    config.harnesses[0].catalog.default_args = vec!["--token=fixture-secret".into()];
     let info = config.info().unwrap();
     assert!(!serde_json::to_string(&info)
         .unwrap()

@@ -37,6 +37,8 @@ jobs:
       - name: Windows OpenSSH authentication integration
         if: runner.os == 'Windows'
         run: |
+          Set-Service -Name ssh-agent -StartupType Manual
+          Start-Service ssh-agent
           python -m pip install paramiko==4.0.0
           cargo +stable test --locked -p buzz-connections -- --include-ignored
       - name: Host package checks

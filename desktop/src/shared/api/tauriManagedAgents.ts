@@ -136,3 +136,30 @@ export async function reconcileManagedAgentRuntimes(
 ): Promise<ManagedAgentRuntimeStatus[]> {
   return invokeTauri("reconcile_managed_agent_runtimes", { communities });
 }
+
+/** One user-requested substrate check after relay Stop; no background polling. */
+export async function confirmExecutionStopped(
+  pubkey: string,
+): Promise<ManagedAgent> {
+  const [identity, relay] = await Promise.all([
+    getIdentity(),
+    invokeTauri<string>("get_relay_ws_url"),
+  ]);
+  const check = (input: ConnectionProbeInput | null) =>
+    invokeTauri<RawManagedAgent>("confirm_execution_stopped", {
+      pubkey,
+      input,
+      expectedRelayUrl: relay,
+      expectedSignerPubkey: identity.pubkey,
+    });
+  let result: RawManagedAgent;
+  try {
+    result = await check(null);
+  } catch (error) {
+    if (!String(error).includes("SSH_AUTH_REQUIRED:")) throw error;
+    result = await check(
+      await requestLaunchCredentials(pubkey, identity.pubkey, relay),
+    );
+  }
+  return fromRawManagedAgent(result);
+}

@@ -60,3 +60,26 @@ pub fn set_agent_execution(
         .map_err(|e| e.to_string())?;
     super::agents::summarize_from_disk(&app, &record, &runtimes)
 }
+
+/// Explicit recovery query after relay Stop; never starts or terminates a remote process.
+#[tauri::command]
+pub async fn confirm_execution_stopped(
+    pubkey: String,
+    input: Option<crate::connections::probe::ProbeInput>,
+    expected_relay_url: String,
+    expected_signer_pubkey: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ManagedAgentSummary, String> {
+    crate::connections::launch::start(
+        &app,
+        &state,
+        &pubkey,
+        input.unwrap_or_default(),
+        &expected_relay_url,
+        &expected_signer_pubkey,
+        None,
+        crate::connections::launch::Action::ConfirmStopped,
+    )
+    .await
+}

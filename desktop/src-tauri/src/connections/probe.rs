@@ -105,6 +105,21 @@ pub(crate) fn checked(
     Ok(check)
 }
 
+pub(crate) fn answers_for_input(
+    store: &super::Store,
+    owner: &str,
+    connection_id: &str,
+    input: &ProbeInput,
+) -> Result<Answers, String> {
+    match super::credentials::answers(store, owner, connection_id) {
+        Ok(answers) => Ok(answers),
+        Err(_) if !input.password.is_empty() || !input.passphrase.is_empty() => {
+            Ok(Answers::default())
+        }
+        Err(error) => Err(error),
+    }
+}
+
 pub(crate) fn helper() -> Result<std::path::PathBuf, String> {
     let executable = std::env::current_exe().map_err(|_| "Cannot locate SSH helper".to_string())?;
     let parent = executable.parent().ok_or("Cannot locate SSH helper")?;

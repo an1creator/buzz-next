@@ -958,6 +958,7 @@ pub async fn start_managed_agent(
                 reconcile_relay.as_str(),
                 &owner_hex,
                 replay_floor_unix,
+                crate::connections::launch::Action::Start,
             )
             .await
         }
