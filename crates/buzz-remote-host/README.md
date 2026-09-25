@@ -33,9 +33,11 @@ harness are separate operator actions. The working folder must already exist.
 
 For an update, validate the new bundle first, keep the server ID and state path,
 then bind `acp_binary`, `cli_binary`, and bundle-owned harness executable/argument
-paths in the operator configuration to that bundle. For shared Codex, update its
-`BUZZ_CODEX_CONNECTION_BIN` and adapter path as well; retain the existing socket
-and operator-selected Node executable. Then update the entry-point symlink. Existing agent processes retain their frozen
+paths in the operator configuration to that bundle. For shared Codex, update the
+harness `executable` and catalog `command`/`binary_path` to the new
+`buzz-codex-connection`, and `BUZZ_CODEX_ACP_SCRIPT` to the new adapter path;
+retain the existing socket and operator-selected Node executable. Then update
+the entry-point symlink. Existing agent processes retain their frozen
 paths and environment; retain every release still used by an active process.
 
 ## Data and lifecycle
