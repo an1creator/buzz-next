@@ -219,6 +219,11 @@ pub struct CreateManagedAgentRequest {
 #[serde(rename_all = "camelCase")]
 pub struct UpdateManagedAgentRequest {
     pub pubkey: String,
+    /// Atomic Connections edit. Legacy callers leave both fields absent.
+    #[serde(default)]
+    pub execution: Option<buzz_connections::model::Execution>,
+    #[serde(default)]
+    pub expected_updated_at: Option<String>,
     /// Absent = don't touch. Present = rename the agent.
     #[serde(default)]
     pub name: Option<String>,

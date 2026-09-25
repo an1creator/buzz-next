@@ -27,19 +27,37 @@ pub fn set_agent_execution(
         .managed_agents_store_lock
         .lock()
         .map_err(|e| e.to_string())?;
-    let connection = crate::connections::get(&app, &execution.connection_id)?;
-    execution.validate(&connection)?;
     let mut records = managed_agents::load_managed_agents(&app)?;
     let record = managed_agents::find_managed_agent_mut(&mut records, &pubkey)?;
+    apply_execution(&app, record, execution, &expected_updated_at)?;
+    record.updated_at = crate::util::now_iso();
+    let record = record.clone();
+    managed_agents::save_managed_agents(&app, &records)?;
+    let runtimes = state
+        .managed_agent_processes
+        .lock()
+        .map_err(|e| e.to_string())?;
+    super::agents::summarize_from_disk(&app, &record, &runtimes)
+}
+
+/// Caller holds the managed-agent store lock; validation precedes persistence.
+pub(crate) fn apply_execution(
+    app: &AppHandle,
+    record: &mut managed_agents::ManagedAgentRecord,
+    execution: Execution,
+    expected_updated_at: &str,
+) -> Result<(), String> {
+    let connection = crate::connections::get(app, &execution.connection_id)?;
+    execution.validate(&connection)?;
     if record.updated_at != expected_updated_at {
         return Err("Agent changed. Reload and try again.".into());
     }
     let changed_machine = record.execution.as_ref().map(|value| &value.connection_id)
         != Some(&execution.connection_id);
-    let uncertain_launch = crate::connections::load(&app)?
+    let uncertain_launch = crate::connections::load(app)?
         .launches
         .values()
-        .any(|attempt| attempt.scope.agent_pubkey == pubkey && attempt.receipt.is_none());
+        .any(|attempt| attempt.scope.agent_pubkey == record.pubkey && attempt.receipt.is_none());
     if changed_machine
         && (record.runtime_pid.is_some() || record.backend_agent_id.is_some() || uncertain_launch)
     {
@@ -51,14 +69,7 @@ pub fn set_agent_execution(
     record.execution = Some(execution);
     record.start_on_app_launch = false;
     record.auto_restart_on_config_change = false;
-    record.updated_at = crate::util::now_iso();
-    let record = record.clone();
-    managed_agents::save_managed_agents(&app, &records)?;
-    let runtimes = state
-        .managed_agent_processes
-        .lock()
-        .map_err(|e| e.to_string())?;
-    super::agents::summarize_from_disk(&app, &record, &runtimes)
+    Ok(())
 }
 
 /// Explicit recovery query after relay Stop; never starts or terminates a remote process.

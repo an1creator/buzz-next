@@ -32,8 +32,10 @@ uses the shared backend capability catalog. Installation and login for a vendor
 harness are separate operator actions. The working folder must already exist.
 
 For an update, validate the new bundle first, keep the server ID and state path,
-then bind `acp_binary` and `cli_binary` in the operator configuration to that bundle
-and update the entry-point symlink. Existing agent processes retain their frozen
+then bind `acp_binary`, `cli_binary`, and bundle-owned harness executable/argument
+paths in the operator configuration to that bundle. For shared Codex, update its
+`BUZZ_CODEX_CONNECTION_BIN` and adapter path as well; retain the existing socket
+and operator-selected Node executable. Then update the entry-point symlink. Existing agent processes retain their frozen
 paths and environment; retain every release still used by an active process.
 
 ## Data and lifecycle

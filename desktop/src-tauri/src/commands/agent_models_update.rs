@@ -24,6 +24,7 @@ fn ensure_access_policy_change_supported(
     access_policy_changed: bool,
 ) -> Result<(), String> {
     if access_policy_changed
+        && record.execution.is_none()
         && record.backend != crate::managed_agents::BackendKind::Local
         && record.backend_agent_id.is_some()
     {
@@ -31,6 +32,20 @@ fn ensure_access_policy_change_supported(
             "Access cannot be changed while this provider-backed agent is deployed because the provider protocol has no explicit stop or revocation acknowledgement. Stop or recreate the provider agent first."
                 .to_string(),
         );
+    }
+    Ok(())
+}
+
+fn ensure_connections_access_change_supported(
+    record: &ManagedAgentRecord,
+    changed: bool,
+    uncertain_launch: bool,
+) -> Result<(), String> {
+    if changed
+        && record.execution.is_some()
+        && (record.runtime_pid.is_some() || record.backend_agent_id.is_some() || uncertain_launch)
+    {
+        return Err("Stop this agent and confirm its stopped state before changing access.".into());
     }
     Ok(())
 }
@@ -163,7 +178,25 @@ pub async fn update_managed_agent(
         }
 
         let record = find_managed_agent_mut(&mut records, &input.pubkey)?;
+        if input
+            .expected_updated_at
+            .as_ref()
+            .is_some_and(|expected| expected != &record.updated_at)
+        {
+            return Err("Agent changed. Reload and try again.".into());
+        }
         let previous_record = record.clone();
+        if let Some(execution) = input.execution {
+            super::super::connections_execution::apply_execution(
+                &app,
+                record,
+                execution,
+                input
+                    .expected_updated_at
+                    .as_deref()
+                    .ok_or("Reload this agent before saving execution")?,
+            )?;
+        }
 
         let mut name_changed = false;
         if let Some(name_update) = input.name {
@@ -271,6 +304,18 @@ pub async fn update_managed_agent(
             crate::managed_agents::owner_only_access_build(),
         );
         ensure_access_policy_change_supported(record, access_policy_changed)?;
+        let uncertain_launch = access_policy_changed
+            && crate::connections::load(&app)?
+                .launches
+                .values()
+                .any(|attempt| {
+                    attempt.scope.agent_pubkey == record.pubkey && attempt.receipt.is_none()
+                });
+        ensure_connections_access_change_supported(
+            record,
+            access_policy_changed,
+            uncertain_launch,
+        )?;
 
         // Revoke the currently running local gate before persisting or
         // advertising the replacement policy. Keeping this inside the same

@@ -62,6 +62,20 @@ export function ConnectionModelField({
       }
     }
   }
+  const labels = new Map<string, number>();
+  for (const model of catalog?.models ?? []) {
+    const label = model.name ?? model.id;
+    labels.set(label, (labels.get(label) ?? 0) + 1);
+  }
+  function cancel() {
+    const id = operation.current;
+    operation.current = null;
+    setPending(false);
+    if (id)
+      void cancelConnectionCheck(id).catch((error) =>
+        setError(`Could not cancel model check: ${String(error)}`),
+      );
+  }
   return (
     <div className="space-y-2">
       <ChoiceField
@@ -71,7 +85,10 @@ export function ConnectionModelField({
           { value: "", label: "Harness default" },
           ...(catalog?.models ?? []).map((model) => ({
             value: model.id,
-            label: model.name ?? model.id,
+            label:
+              (labels.get(model.name ?? model.id) ?? 0) > 1
+                ? `${model.name ?? model.id} · ${model.id}`
+                : (model.name ?? model.id),
           })),
           ...(value && !catalog?.models.some((model) => model.id === value)
             ? [{ value, label: `${value} — saved selection` }]
@@ -89,6 +106,11 @@ export function ConnectionModelField({
         >
           {pending ? "Loading models…" : "Load models"}
         </Button>
+        {pending && (
+          <Button type="button" variant="outline" size="sm" onClick={cancel}>
+            Cancel model check
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"

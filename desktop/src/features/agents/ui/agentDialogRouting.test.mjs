@@ -109,3 +109,20 @@ test("create mode routes to the internal create router, not a form directly", ()
   );
   assert.equal(element.type.name, "AgentCreateDialogRouter");
 });
+
+test("provider v1 keeps its instance editor", async () => {
+  const { AgentInstanceEditDialog } = await import(
+    "./AgentInstanceEditDialog.tsx"
+  );
+  const element = AgentDialog({
+    mode: "instance-edit",
+    agent: {
+      pubkey: "abc",
+      name: "remote",
+      backend: { type: "provider", id: "kubernetes", config: {} },
+    },
+    open: true,
+    onOpenChange: noop,
+  });
+  assert.equal(element.props.children.type, AgentInstanceEditDialog);
+});

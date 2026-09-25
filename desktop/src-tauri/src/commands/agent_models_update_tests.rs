@@ -371,3 +371,22 @@ fn record_field_updates_persist_effort_to_disk() {
     );
     // _home_guard and _xdg_guard restore HOME and XDG_DATA_HOME via Drop.
 }
+
+#[test]
+fn connections_policy_changes_require_confirmed_stop_but_name_edits_do_not() {
+    let mut record = local_record();
+    record.execution = Some(buzz_connections::model::Execution {
+        connection_id: uuid::Uuid::new_v4().to_string(),
+        harness_id: None,
+        model: None,
+        directory: buzz_connections::model::WorkingDirectory::Automatic,
+    });
+    assert!(ensure_connections_access_change_supported(&record, true, false).is_ok());
+    assert!(ensure_connections_access_change_supported(&record, true, true).is_err());
+    record.runtime_pid = Some(123);
+    assert!(ensure_connections_access_change_supported(&record, true, false).is_err());
+    assert!(ensure_connections_access_change_supported(&record, false, true).is_ok());
+    record.runtime_pid = None;
+    record.backend_agent_id = Some("deployment".into());
+    assert!(ensure_connections_access_change_supported(&record, true, false).is_err());
+}

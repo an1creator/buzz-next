@@ -13,6 +13,7 @@ import { AgentRunLocationProvider } from "./AgentRunLocationContext";
 import type { BackendIntent } from "../lib/instanceInputForDefinition";
 import type { AgentCreateIntent } from "./agentCreateIntent";
 import type { EditAgentFocusTarget } from "@/features/agents/openEditAgentEvent";
+import { AgentInstanceEditDialog } from "./AgentInstanceEditDialog";
 import { AgentExecutionDialog } from "@/features/connections/AgentExecutionDialog";
 import { createPersonaDialogState } from "./personaDialogState";
 import {
@@ -79,29 +80,39 @@ type AgentDialogProps =
   | AgentDialogDefinitionEditProps;
 
 /**
- * Unified entry point (Phase 1B.2/1B.3b/1B.3c): routes an intent to the form
- * that owns it. The definition family renders AgentDefinitionDialog — create
- * mode always starts the agent and includes a WhereToRunSection;
- * definition-edit passes the caller's PersonaDialogState-derived props
- * through unchanged (edit/duplicate/import). instance-edit renders
- * AgentInstanceEditDialog (persistent mount + `open` toggle — its reset
- * lifecycle is keyed on [open, agent.pubkey]).
+ * Portable definitions and device execution use separate forms.
+ * Existing provider-v1 instances retain their provider-owned configuration.
  */
 export function AgentDialog(props: AgentDialogProps) {
   if (props.mode === "instance-edit") {
+    const providerV1 =
+      !props.agent.execution &&
+      props.agent.backend?.type === "provider" &&
+      props.agent.backend.id !== "ssh-connections";
     return (
       // A running instance knows its own backend, so the respond-to warning can
       // name the machine it will actually run on.
       <AgentRunLocationProvider
         runLocation={runLocationForBackend(props.agent.backend)}
       >
-        <AgentExecutionDialog
-          agent={props.agent}
-          onEditLinkedPersona={props.onEditLinkedPersona}
-          onOpenChange={props.onOpenChange}
-          onUpdated={props.onUpdated}
-          open={props.open}
-        />
+        {providerV1 ? (
+          <AgentInstanceEditDialog
+            agent={props.agent}
+            initialFocus={props.initialFocus}
+            onEditLinkedPersona={props.onEditLinkedPersona}
+            onOpenChange={props.onOpenChange}
+            onUpdated={props.onUpdated}
+            open={props.open}
+          />
+        ) : (
+          <AgentExecutionDialog
+            agent={props.agent}
+            onEditLinkedPersona={props.onEditLinkedPersona}
+            onOpenChange={props.onOpenChange}
+            onUpdated={props.onUpdated}
+            open={props.open}
+          />
+        )}
       </AgentRunLocationProvider>
     );
   }

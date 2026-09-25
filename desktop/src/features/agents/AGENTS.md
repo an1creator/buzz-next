@@ -16,6 +16,12 @@ This is the explicit product contract for that flow; the legacy Advanced-only
 Run on and local-readiness save gates below do not apply to it. Start owns
 readiness validation. Device paths and SSH settings belong to the instance,
 never its portable persona. Connection defaults affect new drafts only.
+The instance editor retains agent name, access policy, per-instance environment,
+and unlinked instructions. Save submits those fields and Execution atomically
+through update_managed_agent with expectedUpdatedAt. A legacy record can be
+renamed without selecting a Connection; launching still requires explicit setup.
+Connections access-policy changes require a stopped instance and never silently
+restart it. Linked persona instructions remain in the definition editor.
 
 ## The one rule
 

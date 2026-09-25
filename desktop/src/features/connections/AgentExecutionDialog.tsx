@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { ManagedAgent } from "@/shared/api/types";
+import type { ManagedAgent, RespondToMode } from "@/shared/api/types";
 import type { AgentExecution } from "@/shared/api/tauriConnections";
 import {
   invokeTauri,
@@ -11,6 +11,12 @@ import { Button } from "@/shared/ui/button";
 import { Dialog } from "@/shared/ui/dialog";
 import { ChooserDialogContent } from "@/shared/ui/chooser-dialog-content";
 import { ExecutionFields } from "./ExecutionFields";
+import { Input } from "@/shared/ui/input";
+import { Textarea } from "@/shared/ui/textarea";
+import { EnvVarsEditor } from "@/features/agents/ui/EnvVarsEditor";
+import { OwnerOnlyAccessField } from "@/features/agents/ui/OwnerOnlyAccessField";
+import { useAgentAccessOwnerOnlyQuery } from "@/features/agents/useAgentAccessOwnerOnly";
+import { showAgentProfileSyncWarning } from "@/features/agents/ui/agentProfileSyncWarning";
 export function AgentExecutionDialog({
   agent,
   open,
@@ -47,21 +53,41 @@ function ExecutionDialogBody({
   const [value, setValue] = useState<AgentExecution | null>(
     agent.execution ?? null,
   );
+  const [name, setName] = useState(agent.name);
+  const [envVars, setEnvVars] = useState(agent.envVars);
+  const [prompt, setPrompt] = useState(agent.systemPrompt ?? "");
+  const [access, setAccess] = useState<RespondToMode>(agent.respondTo);
+  const [allowlist, setAllowlist] = useState(agent.respondToAllowlist);
+  const accessPolicy = useAgentAccessOwnerOnlyQuery();
   const [pending, setPending] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   async function save() {
-    if (!value) return;
     setPending(true);
     setError(null);
     try {
-      const raw = await invokeTauri<RawManagedAgent>("set_agent_execution", {
-        pubkey: agent.pubkey,
-        execution: value,
-        expectedUpdatedAt: agent.updatedAt,
+      const result = await invokeTauri<{
+        agent: RawManagedAgent;
+        profile_sync_error?: string | null;
+      }>("update_managed_agent", {
+        input: {
+          pubkey: agent.pubkey,
+          execution: value ?? undefined,
+          expectedUpdatedAt: agent.updatedAt,
+          name: name.trim() === agent.name ? undefined : name.trim(),
+          envVars,
+          systemPrompt:
+            agent.personaId || prompt === (agent.systemPrompt ?? "")
+              ? undefined
+              : prompt.trim() || null,
+          respondTo: access,
+          respondToAllowlist: allowlist,
+        },
       });
-      const updated = fromRawManagedAgent(raw);
+      const updated = fromRawManagedAgent(result.agent);
+      if (result.profile_sync_error)
+        showAgentProfileSyncWarning(updated.name, result.profile_sync_error);
       await queryClient.invalidateQueries({ queryKey: ["managed-agents"] });
       onUpdated?.(updated);
       onOpenChange(false);
@@ -73,6 +99,7 @@ function ExecutionDialogBody({
   }
   return (
     <ChooserDialogContent
+      data-testid="edit-agent-dialog"
       title={`Edit ${agent.name}`}
       className="max-w-2xl"
       footer={
@@ -87,10 +114,17 @@ function ExecutionDialogBody({
           </Button>
           <Button
             type="button"
-            disabled={pending || editing || !value}
+            data-testid="edit-agent-dialog-submit"
+            disabled={
+              pending ||
+              editing ||
+              !name.trim() ||
+              accessPolicy.isPending ||
+              accessPolicy.isError
+            }
             onClick={() => void save()}
           >
-            {pending ? "Saving…" : "Save execution"}
+            {pending ? "Saving…" : "Save changes"}
           </Button>
         </div>
       }
@@ -113,12 +147,50 @@ function ExecutionDialogBody({
             converted your existing settings automatically.
           </p>
         )}
+        <label className="block space-y-1 text-sm" htmlFor="edit-agent-name">
+          Agent name
+          <Input
+            id="edit-agent-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            disabled={pending}
+          />
+        </label>
         <fieldset disabled={pending}>
           <ExecutionFields
             value={value}
             onChange={setValue}
             onEditingChange={setEditing}
           />
+          <OwnerOnlyAccessField
+            accessLocked={accessPolicy.data ?? true}
+            allowlist={allowlist}
+            disabled={pending || accessPolicy.isPending || accessPolicy.isError}
+            mode={access}
+            onAllowlistChange={setAllowlist}
+            onModeChange={setAccess}
+          />
+          <details className="space-y-3">
+            <summary className="cursor-pointer text-sm">Advanced</summary>
+            {!agent.personaId && (
+              <label
+                className="block space-y-1 text-sm"
+                htmlFor="edit-agent-instructions"
+              >
+                Instructions
+                <Textarea
+                  id="edit-agent-instructions"
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                />
+              </label>
+            )}
+            <EnvVarsEditor
+              value={envVars}
+              onChange={setEnvVars}
+              disabled={pending}
+            />
+          </details>
         </fieldset>
         <p className="text-sm text-muted-foreground">
           Applies on next start. Saving does not restart an agent. Changing
