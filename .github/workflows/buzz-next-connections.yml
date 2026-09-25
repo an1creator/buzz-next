@@ -1,0 +1,41 @@
+name: Connections platform gates
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/ssh-connections]
+    paths:
+      - 'crates/buzz-connections/**'
+      - '.github/workflows/buzz-next-connections.yml'
+      - 'Cargo.lock'
+permissions:
+  contents: read
+concurrency:
+  group: connections-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  transport:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
+      - name: Whole connection package
+        run: cargo +stable test --locked -p buzz-connections
+      - name: Lint
+        run: cargo +stable clippy --locked -p buzz-connections --all-targets -- -D warnings
+      - name: Formatting
+        run: cargo +stable fmt -p buzz-connections -- --check
+      - name: Isolated OpenSSH integration
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y openssh-server
+          sudo mkdir -p /run/sshd
+          cargo +stable test --locked -p buzz-connections -- --include-ignored

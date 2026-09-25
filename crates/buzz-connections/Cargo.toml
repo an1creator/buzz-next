@@ -1,0 +1,24 @@
+[package]
+name = "buzz-connections"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Device-local execution connections and SSH launch contracts"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+uuid.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
+process-wrap = { version = "=10.0.1", features = ["tokio1"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "buzz-ssh-askpass"
+path = "src/bin/askpass.rs"
