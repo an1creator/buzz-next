@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: connections-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   transport:
     strategy:

@@ -1,11 +1,13 @@
 name: Connections host candidate
 on:
   workflow_dispatch:
+  push:
+    branches: [feature/ssh-connections]
 permissions:
   contents: read
 concurrency:
   group: connections-host-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   host:
     runs-on: ubuntu-24.04

@@ -24,8 +24,12 @@ pub async fn get_connection_models(
         if connection.revision != expected_revision {
             return Err("Connection changed. Reload and retry.".into());
         }
-        let answers =
-            connections::credentials::answers(&connections::load(&app)?, &owner, &connection_id)?;
+        let answers = connections::probe::answers_for_input(
+            &connections::load(&app)?,
+            &owner,
+            &connection_id,
+            &input,
+        )?;
         (connection, answers)
     };
     if !input.password.is_empty() {

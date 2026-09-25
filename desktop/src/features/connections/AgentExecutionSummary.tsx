@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { confirmExecutionStopped } from "@/shared/api/tauriManagedAgents";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCommunities } from "@/features/communities/useCommunities";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import { invokeTauri } from "@/shared/api/tauri";
 import type { ManagedAgent } from "@/shared/api/types";
@@ -22,6 +23,7 @@ type ExecutionStatus = {
 };
 export function AgentExecutionSummary({ agent }: { agent: ManagedAgent }) {
   const identity = useIdentityQuery();
+  const community = useCommunities();
   const client = useQueryClient();
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +43,7 @@ export function AgentExecutionSummary({ agent }: { agent: ManagedAgent }) {
   const query = useQuery({
     queryKey: [
       "agent-execution-status",
+      community.activeCommunity?.relayUrl,
       identity.data?.pubkey,
       agent.pubkey,
       agent.updatedAt,
