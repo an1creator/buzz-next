@@ -134,4 +134,18 @@ async fn encrypted_key_and_host_trust_through_real_openssh() {
     assert!(
         String::from_utf8_lossy(&changed.stderr).contains("REMOTE HOST IDENTIFICATION HAS CHANGED")
     );
+    let client_config = dir.path().join("client config ü");
+    std::fs::write(&client_config, "Host broken-proxy\n  HostName fixture.invalid\n  ProxyCommand sh -c 'echo BUZZ_PROXY_UNAVAILABLE >&2; exit 17'\n").unwrap();
+    let endpoint = SshEndpoint::Config {
+        path: client_config.display().to_string(),
+        alias: "broken-proxy".into(),
+    };
+    let mut command = ssh::command(&endpoint, Path::new(env!("CARGO_BIN_EXE_buzz-ssh-askpass")));
+    command.arg("true");
+    bridge.configure(&mut command);
+    let proxy_failure = process::run(command, b"", Duration::from_secs(5))
+        .await
+        .unwrap();
+    assert!(!proxy_failure.success);
+    assert!(String::from_utf8_lossy(&proxy_failure.stderr).contains("BUZZ_PROXY_UNAVAILABLE"));
 }
