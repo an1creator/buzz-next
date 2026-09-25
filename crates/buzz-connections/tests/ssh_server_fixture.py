@@ -37,8 +37,13 @@ def handle(client):
         if channel is not None and server.executed.wait(10):
             channel.sendall(b"BUZZ_WINDOWS_SSH_OK")
             channel.send_exit_status(0)
-            time.sleep(0.1)
+            channel.shutdown_write()
             channel.close()
+            # Let OpenSSH consume exit-status/EOF and disconnect before closing TCP.
+            # A fixed short sleep can reset the Windows client before it reads them.
+            deadline = time.monotonic() + 10
+            while transport.is_active() and time.monotonic() < deadline:
+                time.sleep(0.02)
     except (EOFError, OSError, paramiko.SSHException):
         pass
     finally:

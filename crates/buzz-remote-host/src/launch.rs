@@ -134,6 +134,7 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
                 | "BUZZ_ACP_AGENT_OWNER"
                 | "BUZZ_ACP_AGENT_COMMAND"
                 | "BUZZ_ACP_AGENT_ARGS"
+                | "BUZZ_ACP_MCP_COMMAND"
                 | "BUZZ_ACP_RESPOND_TO"
                 | "BUZZ_ACP_RESPOND_TO_ALLOWLIST"
                 | "BUZZ_ACP_EXIT_AFTER_INACTIVITY"
@@ -167,6 +168,12 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
         return Err("Harness arguments cannot contain commas or NUL".into());
     }
     environment.insert("BUZZ_ACP_AGENT_ARGS".into(), harness.args.join(","));
+    if let Some(binary) = config.mcp_binary(harness)? {
+        environment.insert(
+            "BUZZ_ACP_MCP_COMMAND".into(),
+            binary.to_string_lossy().into_owned(),
+        );
+    }
     environment.insert("BUZZ_ACP_RESPOND_TO".into(), mode.into());
     environment.insert(
         "BUZZ_ACP_RESPOND_TO_ALLOWLIST".into(),
@@ -200,6 +207,7 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
                 .model_env_var
                 .as_ref()
                 .and_then(|key| environment.get(key))
+                .or_else(|| environment.get("BUZZ_ACP_MODEL"))
                 .cloned(),
             state: LaunchState::Starting,
         },

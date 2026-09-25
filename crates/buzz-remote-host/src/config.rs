@@ -81,6 +81,7 @@ impl Config {
             if executable(&harness.executable).is_err()
                 || executable(&self.acp_binary).is_err()
                 || executable(&self.cli_binary).is_err()
+                || self.mcp_binary(harness).is_err()
             {
                 catalog.availability = AcpAvailabilityStatus::AdapterMissing;
             }
@@ -93,6 +94,31 @@ impl Config {
             default_directory: self.directory(&WorkingDirectory::Automatic)?,
             harnesses,
         })
+    }
+
+    /// Resolve tools from the operator bundle, never from the agent's PATH.
+    pub fn mcp_binary(&self, harness: &Harness) -> Result<Option<PathBuf>, String> {
+        let Some(command) = harness
+            .catalog
+            .mcp_command
+            .as_deref()
+            .filter(|s| !s.is_empty())
+        else {
+            return Ok(None);
+        };
+        let path = Path::new(command);
+        let path = if path.is_absolute() {
+            path.to_owned()
+        } else if path.components().count() == 1 {
+            self.acp_binary
+                .parent()
+                .ok_or("Invalid ACP bundle path")?
+                .join(path)
+        } else {
+            return Err("MCP command must be a bundle executable or an absolute path".into());
+        };
+        executable(&path)?;
+        Ok(Some(path))
     }
 
     /// Read-only bounded authentication probes; no credential files are read by the host.

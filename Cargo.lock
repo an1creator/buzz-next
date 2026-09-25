@@ -1528,9 +1528,12 @@ version = "0.1.0"
 dependencies = [
  "atomic-write-file",
  "buzz-connections",
+ "buzz-sdk",
+ "buzz-ws-client",
  "fs2",
  "futures-util",
  "nostr 0.44.7",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",
