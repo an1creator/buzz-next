@@ -211,3 +211,30 @@ async fn models_run_on_host_without_launch_state_and_do_not_expose_stderr() {
         .unwrap_err();
     assert!(!error.contains("fixture-secret"));
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn auth_probe_uses_operator_cli_path_and_never_replaces_a_missing_pin() {
+    use buzz_connections::catalog::AuthStatus;
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = config(dir.path());
+    let binary = dir.path().join("operator codex");
+    std::fs::write(
+        &binary,
+        "#!/bin/sh\n[ \"$1\" = login ] && [ \"$2\" = status ]\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+    config.harnesses[0].runtime_id = Some("codex".into());
+    config.harnesses[0].catalog.underlying_cli_path = Some(binary.display().to_string());
+    assert_eq!(
+        config.inspect().await.unwrap().harnesses[0].auth_status,
+        AuthStatus::LoggedIn
+    );
+    std::fs::remove_file(&binary).unwrap();
+    assert_eq!(
+        config.inspect().await.unwrap().harnesses[0].auth_status,
+        AuthStatus::Unknown
+    );
+}

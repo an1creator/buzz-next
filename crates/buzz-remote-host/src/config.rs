@@ -134,7 +134,18 @@ impl Config {
                 if let Some(probe) = metadata.auth_probe_args {
                     catalog.auth_status = AuthStatus::Unknown;
                     if let Some((binary, args)) = probe.split_first() {
-                        if let Some(binary) = crate::setup::find_executable(binary) {
+                        let pinned_cli = if metadata.underlying_cli == Some(*binary) {
+                            harness
+                                .catalog
+                                .underlying_cli_path
+                                .as_deref()
+                                .map(PathBuf::from)
+                        } else {
+                            None
+                        };
+                        if let Some(binary) =
+                            pinned_cli.or_else(|| crate::setup::find_executable(binary))
+                        {
                             let mut command = tokio::process::Command::new(binary);
                             command.args(args).envs(&harness.environment);
                             if let Ok(output) = buzz_connections::process::run(
