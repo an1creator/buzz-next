@@ -57,17 +57,37 @@ pub(crate) fn cleanup_credentials(app: &AppHandle, store: &mut Store) -> Result<
     if store.pending_secret_cleanup.is_empty() {
         return Ok(());
     }
-    let secrets = keyring()?;
+    // A failed Remember attempt may leave a journal entry while the keyring is
+    // unavailable. Preserve it for retry without blocking a non-Remember save.
+    let secrets = match keyring() {
+        Ok(secrets) => secrets,
+        Err(_) => return Ok(()),
+    };
+    drain_cleanup(
+        store,
+        |key| secrets.delete(key),
+        |store| persist(app, store),
+    )
+}
+
+fn drain_cleanup(
+    store: &mut Store,
+    mut delete: impl FnMut(&str) -> Result<(), String>,
+    mut persist_store: impl FnMut(&Store) -> Result<(), String>,
+) -> Result<(), String> {
     for key in store.pending_secret_cleanup.clone() {
         if store.credentials.values().any(|bound| bound == &key) {
             return Err("Invalid credential cleanup reference".into());
         }
         validate_reference(&key, None)?;
-        secrets.delete(&key)?;
+        if delete(&key).is_err() {
+            // Do not discard an orphan reference until its keyring entry is gone.
+            break;
+        }
         store
             .pending_secret_cleanup
             .retain(|pending| pending != &key);
-        persist(app, store)?;
+        persist_store(store)?;
     }
     Ok(())
 }
@@ -116,7 +136,8 @@ pub(crate) fn validate_reference(reference: &str, owner: Option<&str>) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::validate_reference;
+    use super::{drain_cleanup, validate_reference};
+    use crate::connections::Store;
     #[test]
     fn references_cannot_read_other_owners_or_delete_unrelated_secrets() {
         let owner = "a".repeat(64);
@@ -125,5 +146,38 @@ mod tests {
         assert!(validate_reference(&reference, Some(&"b".repeat(64))).is_err());
         assert!(validate_reference("identity-private-key", None).is_err());
         assert!(validate_reference("ssh:invalid:invalid", None).is_err());
+    }
+
+    #[test]
+    fn failed_keyring_cleanup_keeps_its_journal_without_blocking_later_saves() {
+        let reference = format!("ssh:{}:{}", "a".repeat(64), uuid::Uuid::new_v4());
+        let mut store = Store {
+            pending_secret_cleanup: vec![reference.clone()],
+            ..Store::default()
+        };
+        let mut writes = 0;
+        drain_cleanup(
+            &mut store,
+            |_| Err("keyring unavailable".into()),
+            |_| {
+                writes += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(store.pending_secret_cleanup, [reference.clone()]);
+        assert_eq!(writes, 0);
+
+        drain_cleanup(
+            &mut store,
+            |_| Ok(()),
+            |_| {
+                writes += 1;
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(store.pending_secret_cleanup.is_empty());
+        assert_eq!(writes, 1);
     }
 }
