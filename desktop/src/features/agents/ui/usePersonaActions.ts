@@ -208,7 +208,7 @@ export function usePersonaActions() {
         const runtime = availableRuntimes.find(
           (candidate) => candidate.id === input.runtime,
         );
-        if (!runtime) {
+        if (!runtime && backendIntent?.type !== "connection") {
           setPersonaErrorMessage(
             "Choose an available provider for this agent.",
           );
@@ -217,14 +217,14 @@ export function usePersonaActions() {
 
         // Stale-intent guard: a definition-only create never carries one.
         const startIntent =
-          resolveCreateIntent(intent) === "definition_start"
+          resolveCreateIntent(intent) !== "definition"
             ? (backendIntent ?? null)
             : null;
 
         const avatarUrl = await resolveManagedAgentAvatarUrl(
           input.avatarUrl,
           undefined,
-          runtime.avatarUrl,
+          runtime?.avatarUrl,
         );
         const persona = await createPersonaMutation.mutateAsync({
           ...input,

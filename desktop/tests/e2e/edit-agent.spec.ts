@@ -13,25 +13,7 @@ const BAKED_DEFAULTS = [
   { key: "ANTHROPIC_API_KEY", value: "sk-ant-baked-test", masked: true },
 ];
 
-// Edit-agent dialog coverage (Phase 1B.3b-pre). Written against TODAY'S
-// EditAgentDialog, before the B3b re-host, so the re-host is guarded by a
-// pre-existing spec rather than one written alongside it.
-//
-// Mock-boundary caveat: the e2eBridge `update_managed_agent` handler echoes
-// name/model/systemPrompt/envVars/respondTo/respondToAllowlist into the
-// mock store — it does NOT
-// model the diff-based partial-update wire semantics (change-detected-or-omit,
-// tri-state provider, harnessOverride derivation), and it ignores
-// agentCommand/harnessOverride entirely. This spec therefore pins UI behavior
-// (open → edit → save → persisted in UI), not wire semantics. The inherit
-// toggle is not reachable here at all (see the routing pin below) — its
-// behavior is covered by B3b's component-level pinning test (inherit-toggle
-// → gate → submit); wire semantics stay component-test territory
-// (personaRuntimeModel.test.mjs).
-
-// Tyler's pubkey maps to gooseSurface in the mock bridge (runtimeId "goose"),
-// which supports LLM provider selection — same seed the readiness-screenshot
-// spec uses for its edit-dialog shot.
+// UI persistence checks use mock IPC; native validation is covered by Rust tests.
 const AGENT_PUBKEY = TEST_IDENTITIES.tyler.pubkey;
 const AGENT_NAME = "Tyler Agent";
 const PERSONA_ID = "persona-edit-e2e";
@@ -59,23 +41,9 @@ async function openEditDialog(page: import("@playwright/test").Page) {
   await expect(page.getByTestId("edit-agent-dialog")).toBeVisible({
     timeout: 10_000,
   });
-  // Provider field visible = runtime catalog loaded and form settled.
-  await expect(page.locator("#edit-agent-llm-provider")).toBeVisible({
-    timeout: 10_000,
-  });
-}
-
-/**
- * Pick an option from a PersonaDropdownField (menu-based, not a native
- * <select> — Create's fields are selects, Edit's are not).
- */
-async function pickDropdownOption(
-  page: import("@playwright/test").Page,
-  triggerId: string,
-  optionName: string | RegExp,
-) {
-  await page.locator(`#${triggerId}`).click();
-  await page.getByRole("menuitemradio", { name: optionName }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Connection", exact: true }),
+  ).toBeVisible();
 }
 
 test.describe("agent definition dialog", () => {
@@ -187,7 +155,7 @@ test.describe("edit agent dialog", () => {
     );
   });
 
-  test("changes the model via custom entry and persists it", async ({
+  test("saves connection-scoped execution and preserves existing environment", async ({
     page,
   }) => {
     await installMockBridge(page, {
@@ -197,285 +165,39 @@ test.describe("edit agent dialog", () => {
           name: AGENT_NAME,
           status: "stopped",
           channelNames: ["agents"],
+          envVars: { PROJECT_FLAG: "retained" },
         },
       ],
     });
-
     await openEditDialog(page);
-
-    // Pick a provider so model discovery has a scope, then set a custom model.
-    await pickDropdownOption(page, "edit-agent-llm-provider", "Anthropic");
-    await pickDropdownOption(page, "edit-agent-model", "Custom model...");
-    await page.locator("#edit-agent-custom-model").fill("claude-opus-4-5");
-    // Anthropic requires a credential before save unlocks.
-    await page.getByLabel("Anthropic API Key").fill("sk-test-edit-agent-e2e");
-
-    const submit = page.getByTestId("edit-agent-dialog-submit");
-    await expect(submit).toBeEnabled({ timeout: 10_000 });
-    await submit.click();
-    await expect(page.getByTestId("edit-agent-dialog")).not.toBeVisible();
-
-    await page.getByTestId("user-profile-edit-agent").click();
-    await expect(page.getByTestId("edit-agent-dialog")).toBeVisible({
-      timeout: 10_000,
-    });
-    // Custom model round-trips: the reopened dialog shows it in the custom
-    // input (the discovered-model lists don't contain it).
-    await expect(page.locator("#edit-agent-custom-model")).toHaveValue(
-      "claude-opus-4-5",
-      { timeout: 10_000 },
-    );
-  });
-
-  test("tells colliding Databricks model names apart and persists the chosen id", async ({
-    page,
-  }) => {
-    const goosePathId = "data_workflow_tools.goose.gpt-6-astra";
-    const systemAiId = "system.ai.gpt-6-astra";
-    await installMockBridge(page, {
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-          envVars: { DATABRICKS_HOST: "https://databricks.example.test" },
-        },
-      ],
-      // The agent inherits Databricks from the global defaults; the mock's
-      // update_managed_agent does not echo a per-agent provider.
-      globalAgentConfig: {
-        preferred_runtime: "goose",
-        provider: "databricks_v2",
-        model: null,
-        env_vars: {},
-      },
-      discoverAgentModels: {
-        models: [
-          { id: goosePathId, name: goosePathId },
-          { id: systemAiId, name: systemAiId },
-        ],
-        supportsSwitching: true,
-        selectedModel: null,
-      },
-    });
-
-    await openEditDialog(page);
-
-    await page.locator("#edit-agent-model").click();
-    await expect(
-      page.getByRole("menuitemradio", {
-        name: "GPT-6 Astra (data_workflow_tools.goose)",
-      }),
-    ).toBeVisible();
     await page
-      .getByRole("menuitemradio", { name: "GPT-6 Astra (system.ai)" })
+      .getByRole("button", { name: "Add connection", exact: true })
       .click();
-    await expect(page.locator("#edit-agent-model")).toHaveText(
-      "GPT-6 Astra (system.ai)",
-    );
-
-    const submit = page.getByTestId("edit-agent-dialog-submit");
-    await expect(submit).toBeEnabled({ timeout: 10_000 });
-    await submit.click();
-    await expect(page.getByTestId("edit-agent-dialog")).not.toBeVisible();
-
-    const persistedModel = () =>
-      page.evaluate(async (pubkey) => {
-        const agents = (await (
-          window as typeof window & {
-            __BUZZ_E2E_INVOKE_MOCK_COMMAND__?: (
-              command: string,
-              payload: unknown,
-            ) => Promise<unknown>;
-          }
-        ).__BUZZ_E2E_INVOKE_MOCK_COMMAND__?.("list_managed_agents", null)) as
-          | Array<{ pubkey: string; model: string | null }>
-          | undefined;
-        return agents?.find((agent) => agent.pubkey === pubkey)?.model;
-      }, AGENT_PUBKEY);
-    await expect.poll(persistedModel).toBe(systemAiId);
-
-    await page.getByTestId("user-profile-edit-agent").click();
-    await expect(page.locator("#edit-agent-model")).toHaveText(
-      "GPT-6 Astra (system.ai)",
-      { timeout: 10_000 },
-    );
-  });
-
-  test("keeps the custom command visible without opening Advanced", async ({
-    page,
-  }) => {
-    await installMockBridge(page, {
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-        },
-      ],
-    });
-
-    await openEditDialog(page);
-
-    const advanced = page.getByRole("button", {
-      name: "Advanced",
-      exact: true,
-    });
-    await expect(advanced).toHaveAttribute("aria-expanded", "false");
-    await pickDropdownOption(page, "edit-agent-runtime", "Custom command");
-    await expect(page.locator("#edit-agent-command")).toBeVisible();
-    await expect(advanced).toHaveAttribute("aria-expanded", "false");
-  });
-
-  test("marks a missing advanced credential without opening Advanced", async ({
-    page,
-  }) => {
-    await installMockBridge(page, {
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-        },
-      ],
-    });
-
-    await openEditDialog(page);
-
-    const advanced = page.getByRole("button", {
-      name: "Advanced",
-      exact: true,
-    });
-    await expect(advanced).toHaveAttribute("aria-expanded", "false");
-    await pickDropdownOption(page, "edit-agent-llm-provider", "Databricks v2");
-    await expect(advanced).toHaveAttribute("aria-expanded", "false");
-    await expect(
-      page.getByTestId("edit-agent-advanced-required-badge"),
-    ).toHaveText("Required");
-    await expect(page.getByTestId("edit-agent-dialog-submit")).toBeDisabled();
-
-    await advanced.click();
-    await expect(page.getByLabel("Value for DATABRICKS_HOST")).toBeVisible();
-  });
-
-  test("shows baked defaults in the instance editor", async ({ page }) => {
-    await installMockBridge(page, {
-      bakedBuildEnv: BAKED_DEFAULTS,
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-        },
-      ],
-    });
-
-    await openEditDialog(page);
-
-    await expect(page.locator("#edit-agent-llm-provider")).toHaveText(
-      "Anthropic (inherited from build)",
-    );
-    await expect(page.locator("#edit-agent-model")).toHaveText(
-      "Inherit build default (claude-opus-4-8)",
-    );
-    const defaults = page.getByTestId("agent-ai-defaults-notice");
-    await expect(
-      defaults.getByText("Anthropic", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      defaults.getByText("claude-opus-4-8", { exact: true }),
-    ).toBeVisible();
-  });
-
-  test("explicit global defaults override baked labels in the instance editor", async ({
-    page,
-  }) => {
-    await installMockBridge(page, {
-      bakedBuildEnv: BAKED_DEFAULTS,
-      globalAgentConfig: {
-        provider: "anthropic",
-        model: "claude-opus-4-5",
-        env_vars: { BUZZ_AGENT_THINKING_EFFORT: "low" },
-      },
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-        },
-      ],
-    });
-
-    await openEditDialog(page);
-
-    await expect(page.locator("#edit-agent-llm-provider")).toHaveText(
-      "Use agent defaults (anthropic)",
-    );
-    await expect(page.locator("#edit-agent-model")).toHaveText(
-      "Use agent defaults (claude-opus-4-5)",
-    );
-    const defaults = page.getByTestId("agent-ai-defaults-notice");
-    await expect(
-      defaults.getByText("Anthropic", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      defaults.getByText("claude-opus-4-5", { exact: true }),
-    ).toBeVisible();
-  });
-
-  test("discovers, selects, and persists an ACP command from the agent profile", async ({
-    page,
-  }) => {
-    await installMockBridge(page, {
-      acpCommands: [
-        {
-          command: "buzz-janet-acp",
-          binaryPath: "/usr/local/bin/buzz-janet-acp",
-        },
-      ],
-      managedAgents: [
-        {
-          pubkey: AGENT_PUBKEY,
-          name: AGENT_NAME,
-          status: "stopped",
-          channelNames: ["agents"],
-        },
-      ],
-    });
-
-    await openEditDialog(page);
-    await page.getByRole("button", { name: "Advanced", exact: true }).click();
-
-    const acpPicker = page.locator("#edit-agent-acp-command");
-    await expect(acpPicker).toBeVisible();
-    await acpPicker.click();
-    await expect(
-      page.getByRole("menuitemradio", { name: "buzz-janet-acp" }),
-    ).toBeVisible();
-    await page.getByRole("menuitemradio", { name: "buzz-janet-acp" }).click();
-    await expect(acpPicker).toContainText("buzz-janet-acp");
-    await page.screenshot({
-      path: test.info().outputPath("acp-command-selected.png"),
-      fullPage: true,
-    });
-
+    await page
+      .getByRole("button", { name: "This device", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Save connection", exact: true })
+      .click();
+    await page.getByRole("combobox", { name: "Harness", exact: true }).click();
+    await page
+      .getByRole("option", { name: "Codex — Server", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Custom model", exact: true })
+      .click();
+    await page.getByLabel("Model ID", { exact: true }).fill("my-custom-model");
     await page.getByTestId("edit-agent-dialog-submit").click();
     await expect(page.getByTestId("edit-agent-dialog")).not.toBeVisible();
-
     await page.getByTestId("user-profile-edit-agent").click();
-    await page.getByRole("button", { name: "Advanced", exact: true }).click();
-    await expect(page.locator("#edit-agent-acp-command")).toContainText(
-      "buzz-janet-acp",
-    );
-    await page.screenshot({
-      path: test.info().outputPath("acp-command-persisted.png"),
-      fullPage: true,
-    });
+    await expect(
+      page.getByRole("combobox", { name: "Harness", exact: true }),
+    ).toHaveAttribute("data-value", "server-codex");
+    await expect(
+      page.getByRole("combobox", { name: "Model", exact: true }),
+    ).toHaveAttribute("data-value", "my-custom-model");
+    await page.getByText("Advanced", { exact: true }).click();
+    await expect(page.locator('input[value="retained"]')).toBeVisible();
   });
 
   test("profile Edit opens the persona editor for a persona-linked agent", async ({

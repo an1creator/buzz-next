@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { AgentDialog } from "./AgentDialog.tsx";
 import { AgentDefinitionDialog } from "./AgentDefinitionDialog.tsx";
-import { AgentInstanceEditDialog } from "./AgentInstanceEditDialog.tsx";
+import { AgentExecutionDialog } from "../../connections/AgentExecutionDialog.tsx";
 import { AgentRunLocationProvider } from "./AgentRunLocationContext.tsx";
 
 // ── Phase 1B.3c routing pinning ─────────────────────────────────────────────
@@ -42,7 +42,7 @@ test("definition-edit routes to AgentDefinitionDialog with exact pass-through", 
   );
 });
 
-test("instance-edit routes to AgentInstanceEditDialog with its contract props", () => {
+test("instance-edit routes to AgentExecutionDialog with its contract props", () => {
   const agent = { pubkey: "abc", name: "test-agent" };
   const onOpenChange = noop;
   const onUpdated = noop;
@@ -57,17 +57,16 @@ test("instance-edit routes to AgentInstanceEditDialog with its contract props", 
 
   // The arm wraps the form in the run-location provider so the respond-to
   // warning can name the machine without the value being threaded as a prop
-  // through AgentInstanceEditDialog (see AgentRunLocationContext for why).
+  // through AgentExecutionDialog (see AgentRunLocationContext for why).
   assert.equal(element.type, AgentRunLocationProvider);
   const form = element.props.children;
-  assert.equal(form.type, AgentInstanceEditDialog);
+  assert.equal(form.type, AgentExecutionDialog);
   assert.deepEqual(form.props, {
     agent,
     onEditLinkedPersona: undefined,
     onOpenChange,
     onUpdated,
     open: true,
-    initialFocus: undefined,
   });
 });
 
@@ -102,11 +101,28 @@ test("create mode routes to the internal create router, not a form directly", ()
   });
 
   assert.notEqual(element.type, AgentDefinitionDialog);
-  assert.notEqual(element.type, AgentInstanceEditDialog);
+  assert.notEqual(element.type, AgentExecutionDialog);
   assert.equal(
     typeof element.type,
     "function",
     "definition must route through the internal create router",
   );
   assert.equal(element.type.name, "AgentCreateDialogRouter");
+});
+
+test("provider v1 keeps its instance editor", async () => {
+  const { AgentInstanceEditDialog } = await import(
+    "./AgentInstanceEditDialog.tsx"
+  );
+  const element = AgentDialog({
+    mode: "instance-edit",
+    agent: {
+      pubkey: "abc",
+      name: "remote",
+      backend: { type: "provider", id: "kubernetes", config: {} },
+    },
+    open: true,
+    onOpenChange: noop,
+  });
+  assert.equal(element.props.children.type, AgentInstanceEditDialog);
 });

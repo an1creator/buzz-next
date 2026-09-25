@@ -1,3 +1,4 @@
+import { ConnectionLaunchPrompt } from "@/features/connections/ConnectionLaunchPrompt";
 import * as React from "react";
 import { ProtectedGlobalOverlay } from "@protected-feature-components";
 import { useQueryClient } from "@tanstack/react-query";
@@ -965,6 +966,9 @@ export function AppShell() {
                   )}
                   <RequestedAgentCreateDialogs />
                   <AgentManagementDialogs />
+                  <ConnectionLaunchPrompt
+                    key={`${communitiesHook.activeCommunity?.id}:${communitiesHook.reinitKey}`}
+                  />
                   <AppShellOverlays
                     activeChannel={managedChannel}
                     browseDialogType={browseDialogType}

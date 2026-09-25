@@ -42,6 +42,7 @@ fn snap(record: &ManagedAgentRecord) -> serde_json::Value {
 
 fn record() -> ManagedAgentRecord {
     ManagedAgentRecord {
+        execution: None,
         session_policy: Default::default(),
         description: None,
         pubkey: "p".repeat(64),

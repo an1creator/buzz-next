@@ -1,3 +1,4 @@
+import { createConnectionMock } from "./e2eBridgeConnections";
 import * as React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -951,6 +952,7 @@ type RawRelayAgent = {
 };
 
 type RawManagedAgent = {
+  execution?: import("@/shared/api/tauriConnections").AgentExecution | null;
   pubkey: string;
   name: string;
   persona_id: string | null;
@@ -1960,6 +1962,7 @@ function cloneRelayAgent(agent: RawRelayAgent): RawRelayAgent {
 
 function cloneManagedAgent(agent: MockManagedAgent): RawManagedAgent {
   return {
+    execution: agent.execution ? structuredClone(agent.execution) : null,
     pubkey: agent.pubkey,
     name: agent.name,
     persona_id: agent.persona_id,
@@ -9950,6 +9953,7 @@ async function handleGetManagedAgentLog(args: {
 async function handleUpdateManagedAgent(args: {
   input: {
     pubkey: string;
+    execution?: RawManagedAgent["execution"];
     name?: string;
     model?: string | null;
     systemPrompt?: string | null;
@@ -9960,6 +9964,8 @@ async function handleUpdateManagedAgent(args: {
   };
 }): Promise<{ agent: RawManagedAgent; profile_sync_error: string | null }> {
   const agent = getMockManagedAgent(args.input.pubkey);
+  if (args.input.execution !== undefined)
+    agent.execution = args.input.execution;
   if (args.input.name !== undefined) {
     agent.name = args.input.name;
   }
@@ -12004,6 +12010,7 @@ export function maybeInstallE2eTauriMocks() {
       sourceUrl: null;
     };
   }> = [];
+  const connectionMock = createConnectionMock();
   const handleMockCommand = async (
     command: string,
     payload: unknown,
@@ -12026,6 +12033,8 @@ export function maybeInstallE2eTauriMocks() {
       payload: loggedPayload,
     });
     window.__BUZZ_E2E_COMMAND_LOG__?.push({ command, payload });
+    if (connectionMock.handles(command))
+      return connectionMock.invoke(command, payload);
 
     switch (command) {
       case "get_huddle_state": {

@@ -10,13 +10,15 @@ use crate::managed_agents::{
 };
 mod auth_status_cache;
 mod bounded_command;
+mod catalog;
 pub(crate) mod command_search;
 mod login_shell;
 mod presets;
 mod runtime_metadata;
-#[macro_use]
-mod windows_install;
-mod catalog;
+#[cfg(test)]
+use buzz_connections::harness_metadata::BUZZ_AGENT_AVATAR_URL;
+#[cfg(test)]
+mod avatar_tests;
 pub(crate) use catalog::KNOWN_ACP_RUNTIMES;
 pub use login_shell::{find_nvm_default_bin, login_shell_path};
 pub(crate) use login_shell::{find_via_login_shell, refresh_login_shell_path};
@@ -34,11 +36,6 @@ pub(crate) use runtime_metadata::KnownAcpRuntime;
 #[cfg(test)]
 pub(crate) use runtime_metadata::GOOSE_EFFORT_NORMALIZATION;
 
-const GOOSE_AVATAR_URL: &str = "https://goose-docs.ai/img/logo_dark.png";
-const CLAUDE_CODE_AVATAR_URL: &str = "https://anthropic.gallerycdn.vsassets.io/extensions/anthropic/claude-code/2.1.77/1773707456892/Microsoft.VisualStudio.Services.Icons.Default";
-const CODEX_AVATAR_URL: &str = "https://openai.gallerycdn.vsassets.io/extensions/openai/chatgpt/26.5313.41514/1773706730621/Microsoft.VisualStudio.Services.Icons.Default";
-const BUZZ_AGENT_AVATAR_URL: &str =
-    "https://raw.githubusercontent.com/block/buzz/refs/heads/main/crates/buzz-agent/buzz-agent.png";
 fn common_binary_paths() -> &'static [PathBuf] {
     static PATHS: OnceLock<Vec<PathBuf>> = OnceLock::new();
     PATHS.get_or_init(|| {
@@ -286,6 +283,14 @@ pub fn try_record_agent_command(
     record: &crate::managed_agents::types::ManagedAgentRecord,
     personas: &[crate::managed_agents::types::AgentDefinition],
 ) -> Result<String, String> {
+    if let Some(execution) = &record.execution {
+        let id = execution
+            .harness_id
+            .as_deref()
+            .ok_or("Choose a harness in Execution before starting")?;
+        return presets::command_for_runtime_id(id)
+            .ok_or_else(|| format!("DANGLING_HARNESS_ID:{id}"));
+    }
     // Explicit pin always wins — if the user set a raw override, honour it.
     if let Some(pin) = record
         .agent_command_override
@@ -321,12 +326,13 @@ pub fn try_record_agent_command(
 }
 
 fn default_agent_args(command: &str) -> Option<Vec<String>> {
-    match normalize_command_identity(command).as_str() {
-        "goose" => Some(vec!["acp".to_string()]),
-        "codex" | "codex-acp" | "claude-agent-acp" | "claude-code-acp" | "claude-code"
-        | "claudecode" | "buzz-agent" => Some(Vec::new()),
-        _ => None,
-    }
+    known_acp_runtime(command).map(|runtime| {
+        runtime
+            .default_args
+            .iter()
+            .map(|arg| (*arg).into())
+            .collect()
+    })
 }
 
 pub fn normalize_agent_args(command: &str, agent_args: Vec<String>) -> Vec<String> {

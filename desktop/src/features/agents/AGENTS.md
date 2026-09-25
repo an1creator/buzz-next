@@ -8,10 +8,25 @@ Plan of record: `Buzz/Harness-Provider-Model.md` in Morgan's Obsidian vault
 (PR sequence, decisions log). PRs: #2140 (rename), #2148 (flag reduction),
 #2156 (honest model states), #2158 (Agent Config Core).
 
+## SSH Connections execution surfaces
+
+Connections-based Create exposes Execution (Connection, Harness, Model, Working
+directory) before Advanced and permits saving a stopped, unready instance.
+This is the explicit product contract for that flow; the legacy Advanced-only
+Run on and local-readiness save gates below do not apply to it. Start owns
+readiness validation. Device paths and SSH settings belong to the instance,
+never its portable persona. Connection defaults affect new drafts only.
+The instance editor retains agent name, access policy, per-instance environment,
+and unlinked instructions. Save submits those fields and Execution atomically
+through update_managed_agent with expectedUpdatedAt. A legacy record can be
+renamed without selecting a Connection; launching still requires explicit setup.
+Connections access-policy changes require a stopped instance and never silently
+restart it. Linked persona instructions remain in the definition editor.
+
 ## The one rule
 
 **Harness capability facts have exactly one source: the Rust runtime catalog.**
-`KnownAcpRuntime` (`desktop/src-tauri/src/managed_agents/discovery/runtime_metadata.rs`)
+`KnownAcpRuntime` (`crates/buzz-connections/src/harness_metadata/`; re-exported by Desktop discovery)
 declares each harness's model/provider/effort env keys and capabilities. Spawn
 applies them; `AcpRuntimeCatalogEntry` exposes them over IPC; and
 `lib/agentConfigCore.ts` projects them into field descriptors. The frontend

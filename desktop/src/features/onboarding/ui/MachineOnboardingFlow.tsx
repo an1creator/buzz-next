@@ -11,7 +11,7 @@ import type { IdentityStorage } from "@/shared/api/types";
 import { Button } from "@/shared/ui/button";
 import { StartupWindowDragRegion } from "@/shared/ui/StartupWindowDragRegion";
 import { BackupStep } from "./BackupStep";
-import { DefaultConfigStep } from "./DefaultConfigStep";
+import { ConnectionsOnboardingStep } from "./ConnectionsOnboardingStep";
 import { DownloadKeyStep } from "./DownloadKeyStep";
 import {
   backupSessionToPasswordEntry,
@@ -39,9 +39,6 @@ import {
   type OnboardingTransitionDirection,
   OnboardingSlideTransition,
 } from "./OnboardingSlideTransition";
-import { SetupStep } from "./SetupStep";
-import type { HarnessConnectionMethod } from "./harnessConnectionOptions";
-import type { DefaultConfigDraft } from "./types";
 
 export type MachineOnboardingPage =
   | "identity"
@@ -96,21 +93,6 @@ export function MachineOnboardingFlow({
   const [identityStorage, setIdentityStorage] = React.useState<
     IdentityStorage | undefined
   >();
-  const [readyRuntimeIds, setReadyRuntimeIds] = React.useState<string[]>([]);
-  const [setupBackAction, setSetupBackAction] = React.useState<
-    (() => void) | null
-  >(null);
-  const [harnessConnectionMethod, setHarnessConnectionMethod] =
-    React.useState<HarnessConnectionMethod | null>(null);
-  const [configBackTarget, setConfigBackTarget] = React.useState<
-    "method" | "list"
-  >("method");
-  const [isChoosingDifferentHarness, setIsChoosingDifferentHarness] =
-    React.useState(false);
-  const [defaultConfigDraft, setDefaultConfigDraft] =
-    React.useState<DefaultConfigDraft | null>(null);
-  const [isDefaultConfigSaving, setIsDefaultConfigSaving] =
-    React.useState(false);
   const [backupSubview, setBackupSubview] =
     React.useState<BackupSubview>("created");
   const [backupDirection, setBackupDirection] = React.useState<
@@ -122,27 +104,6 @@ export function MachineOnboardingFlow({
   // subview keeps the created backup, password, and test progress.
   const backupSession = useEncryptedBackupSession();
   const reduceMotion = useReducedMotion() ?? false;
-  const setupSelectionHandoffRef = React.useRef(false);
-  const handleReadyRuntimeIdsChange = React.useCallback(
-    (runtimeIds: readonly string[]) => {
-      if (setupSelectionHandoffRef.current) return;
-      setReadyRuntimeIds(Array.from(new Set(runtimeIds)));
-    },
-    [],
-  );
-  const handleSetupBackActionChange = React.useCallback(
-    (backAction: () => void) =>
-      setSetupBackAction((current) =>
-        current === backAction ? current : backAction,
-      ),
-    [],
-  );
-  const returnToApiConfig = React.useCallback(() => {
-    setIsChoosingDifferentHarness(false);
-    setTransitionDirection("backward");
-    setPage("config");
-  }, []);
-
   const loadFreshIdentity = React.useCallback(async () => {
     setIsPending(true);
     setError(null);
@@ -271,16 +232,6 @@ export function MachineOnboardingFlow({
     setPage("backup");
   }, [backupSession, backupSubview, identityWasImported]);
 
-  const backFromConfig = React.useCallback(() => {
-    setupSelectionHandoffRef.current = false;
-    setTransitionDirection("backward");
-    setIsChoosingDifferentHarness(false);
-    if (configBackTarget === "method") {
-      setHarnessConnectionMethod(null);
-    }
-    setPage("setup");
-  }, [configBackTarget]);
-
   const chromeBackAction =
     page === "identity-key-help"
       ? {
@@ -316,14 +267,9 @@ export function MachineOnboardingFlow({
                     setPage("identity-key-intro");
                   },
                 }
-              : page === "setup"
-                ? { onClick: setupBackAction ?? backFromSetup }
-                : page === "config"
-                  ? {
-                      disabled: isDefaultConfigSaving,
-                      onClick: backFromConfig,
-                    }
-                  : undefined;
+              : page === "setup" || page === "config"
+                ? { onClick: backFromSetup }
+                : undefined;
 
   if (page === "identity") {
     return (
@@ -406,7 +352,7 @@ export function MachineOnboardingFlow({
   return (
     <OnboardingCard
       backAction={chromeBackAction}
-      current={page === "config" ? 4 : page === "setup" ? 3 : 2}
+      current={page === "config" || page === "setup" ? 3 : 2}
       showStepIndicator={page !== "identity-key-help"}
       testId="machine-onboarding-gate"
     >
@@ -587,66 +533,13 @@ export function MachineOnboardingFlow({
             returningFromSecurity={returningFromSecurity}
           />
         )
-      ) : page === "setup" ? (
-        <SetupStep
-          actions={{
-            // Fresh-key users return to whichever identity backup subview
-            // they used to reach setup; imported keys skip backup entirely.
-            back: () => {
-              backFromSetup();
-            },
-            next: (runtimeIds, nextConfigBackTarget = "list") => {
-              const ids = Array.from(runtimeIds);
-              setupSelectionHandoffRef.current = ids.length > 0;
-              setReadyRuntimeIds(ids);
-              // Harness install can fail (Windows/PATH/network). Don't soft-lock
-              // onboarding — users can finish setup later in Settings → Agents.
-              if (ids.length === 0) {
-                complete(selectedPubkey ?? undefined, {
-                  continueToProfile: !identityWasImported,
-                });
-                return;
-              }
-              setConfigBackTarget(nextConfigBackTarget);
-              setIsChoosingDifferentHarness(false);
-              setTransitionDirection("forward");
-              setPage("config");
-            },
-          }}
-          direction={transitionDirection}
-          initialMethod={harnessConnectionMethod}
-          onInitialListBack={
-            isChoosingDifferentHarness ? returnToApiConfig : undefined
-          }
-          onBackActionChange={handleSetupBackActionChange}
-          onMethodChange={setHarnessConnectionMethod}
-          onReadyRuntimeIdsChange={handleReadyRuntimeIdsChange}
-        />
       ) : (
-        <DefaultConfigStep
-          actions={{
-            back: () => {
-              backFromConfig();
-            },
-            complete: () =>
-              complete(selectedPubkey ?? undefined, {
-                continueToProfile: !identityWasImported,
-              }),
-            discardDraft: () => setDefaultConfigDraft(null),
-            updateDraft: setDefaultConfigDraft,
-            useDifferentHarness:
-              harnessConnectionMethod === "api"
-                ? () => {
-                    setIsChoosingDifferentHarness(true);
-                    setTransitionDirection("forward");
-                    setPage("setup");
-                  }
-                : undefined,
-          }}
-          direction={transitionDirection}
-          draft={defaultConfigDraft}
-          onSavingChange={setIsDefaultConfigSaving}
-          readyRuntimeIds={readyRuntimeIds}
+        <ConnectionsOnboardingStep
+          onContinue={() =>
+            complete(selectedPubkey ?? undefined, {
+              continueToProfile: !identityWasImported,
+            })
+          }
         />
       )}
     </OnboardingCard>

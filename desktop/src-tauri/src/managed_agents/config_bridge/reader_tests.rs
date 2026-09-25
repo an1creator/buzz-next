@@ -30,6 +30,7 @@ fn with_goose_path_root<T>(value: Option<&str>, body: impl FnOnce() -> T) -> T {
 fn test_runtime() -> &'static KnownAcpRuntime {
     static RUNTIME: KnownAcpRuntime = KnownAcpRuntime {
         id: "goose",
+        default_args: &[],
         label: "Goose",
         commands: &["goose"],
         aliases: &[],
@@ -68,6 +69,7 @@ fn test_runtime() -> &'static KnownAcpRuntime {
 
 fn test_record() -> ManagedAgentRecord {
     ManagedAgentRecord {
+        execution: None,
         session_policy: Default::default(),
         description: None,
         pubkey: "test".to_string(),
@@ -231,6 +233,7 @@ fn claude_surface_uses_mcp_config_path_not_settings_path() {
     let record = test_record();
     let runtime = &KnownAcpRuntime {
         id: "claude",
+        default_args: &[],
         config_file_path: Some("~/.claude/settings.json"),
         ..*test_runtime()
     };
@@ -627,6 +630,7 @@ fn extra_env_var_skipped_when_already_in_file_config_extra() {
 fn buzz_agent_runtime() -> &'static KnownAcpRuntime {
     &KnownAcpRuntime {
         id: "buzz-agent",
+        default_args: &[],
         label: "Buzz Agent",
         commands: &["buzz-agent"],
         aliases: &[],

@@ -5,7 +5,10 @@
  * - `definition_start` — definition plus an immediately created + spawned
  *   managed instance linked via `personaId` (today's quick-start flow).
  */
-export type AgentCreateIntent = "definition" | "definition_start";
+export type AgentCreateIntent =
+  | "definition"
+  | "definition_start"
+  | "definition_instance";
 
 /**
  * Default intent for callers that don't pass one. Un-migrated callers of

@@ -1,3 +1,6 @@
+import { getIdentity } from "./tauriIdentity";
+import { requestLaunchCredentials } from "./connectionLaunchPrompt";
+import type { ConnectionProbeInput } from "./tauriConnections";
 import {
   fromRawManagedAgent,
   invokeTauri,
@@ -26,12 +29,31 @@ export async function startManagedAgent(
     replayFloorUnix?: number;
   },
 ): Promise<ManagedAgent> {
-  const response = await invokeTauri<RawManagedAgent>("start_managed_agent", {
-    pubkey,
-    expectedRelayUrl: options?.expectedRelayUrl ?? null,
-    expectedSignerPubkey: options?.expectedSignerPubkey ?? null,
-    replayFloorUnix: options?.replayFloorUnix ?? null,
-  });
+  const [owner, relay] = await Promise.all([
+    options?.expectedSignerPubkey
+      ? Promise.resolve(options.expectedSignerPubkey)
+      : getIdentity().then((identity) => identity.pubkey),
+    options?.expectedRelayUrl
+      ? Promise.resolve(options.expectedRelayUrl)
+      : invokeTauri<string>("get_relay_ws_url"),
+  ]);
+  const launch = (connectionInput: ConnectionProbeInput | null) =>
+    invokeTauri<RawManagedAgent>("start_managed_agent", {
+      pubkey,
+      expectedRelayUrl: relay,
+      expectedSignerPubkey: owner,
+      replayFloorUnix: options?.replayFloorUnix ?? null,
+      connectionInput,
+    });
+  let response: RawManagedAgent;
+  try {
+    response = await launch(null);
+  } catch (error) {
+    if (!String(error).includes("SSH_AUTH_REQUIRED:")) throw error;
+    response = await launch(
+      await requestLaunchCredentials(pubkey, owner, relay),
+    );
+  }
   return fromRawManagedAgent(response);
 }
 
@@ -113,4 +135,31 @@ export async function reconcileManagedAgentRuntimes(
   communities: readonly { relayUrl: string }[],
 ): Promise<ManagedAgentRuntimeStatus[]> {
   return invokeTauri("reconcile_managed_agent_runtimes", { communities });
+}
+
+/** One user-requested substrate check after relay Stop; no background polling. */
+export async function confirmExecutionStopped(
+  pubkey: string,
+): Promise<ManagedAgent> {
+  const [identity, relay] = await Promise.all([
+    getIdentity(),
+    invokeTauri<string>("get_relay_ws_url"),
+  ]);
+  const check = (input: ConnectionProbeInput | null) =>
+    invokeTauri<RawManagedAgent>("confirm_execution_stopped", {
+      pubkey,
+      input,
+      expectedRelayUrl: relay,
+      expectedSignerPubkey: identity.pubkey,
+    });
+  let result: RawManagedAgent;
+  try {
+    result = await check(null);
+  } catch (error) {
+    if (!String(error).includes("SSH_AUTH_REQUIRED:")) throw error;
+    result = await check(
+      await requestLaunchCredentials(pubkey, identity.pubkey, relay),
+    );
+  }
+  return fromRawManagedAgent(result);
 }

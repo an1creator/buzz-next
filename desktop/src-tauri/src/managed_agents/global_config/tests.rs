@@ -299,6 +299,7 @@ fn default_global_config_serializes_all_fields() {
 
 fn bare_record() -> ManagedAgentRecord {
     ManagedAgentRecord {
+        execution: None,
         session_policy: Default::default(),
         description: None,
         pubkey: "agent".to_string(),

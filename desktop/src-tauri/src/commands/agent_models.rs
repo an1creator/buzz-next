@@ -38,6 +38,33 @@ pub async fn get_agent_models(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<AgentModelsResponse, String> {
+    let execution = {
+        let _guard = state
+            .managed_agents_store_lock
+            .lock()
+            .map_err(|e| e.to_string())?;
+        load_managed_agents(&app)?
+            .into_iter()
+            .find(|record| record.pubkey == pubkey)
+            .and_then(|record| record.execution)
+    };
+    if let Some(execution) = execution {
+        let connection = crate::connections::get(&app, &execution.connection_id)?;
+        let mut result = super::connections_models::get_connection_models(
+            connection.id,
+            connection.revision,
+            execution
+                .harness_id
+                .ok_or("Choose a harness before discovering models")?,
+            uuid::Uuid::new_v4().to_string(),
+            Default::default(),
+            app,
+            state,
+        )
+        .await?;
+        result.selected_model = execution.model;
+        return Ok(result);
+    }
     let (resolved_acp, agent_command, discovery) = {
         let _store_guard = state
             .managed_agents_store_lock

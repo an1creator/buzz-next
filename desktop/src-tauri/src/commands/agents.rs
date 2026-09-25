@@ -21,7 +21,7 @@ use crate::{
 
 /// Read the workspace owner pubkey without holding the lock. Used to populate `BUZZ_ACP_AGENT_OWNER`
 /// as a fallback for legacy agent records that have no NIP-OA `auth_tag`.
-pub(super) fn workspace_owner_hex(state: &AppState) -> Result<String, String> {
+pub(crate) fn workspace_owner_hex(state: &AppState) -> Result<String, String> {
     let keys = state.keys.lock().map_err(|e| e.to_string())?;
     Ok(keys.public_key().to_hex())
 }
@@ -36,7 +36,7 @@ pub(crate) use pending::{retain_managed_agent_pending, tombstone_managed_agent_p
 /// For one-shot command paths only — the 5s list poll calls
 /// `build_managed_agent_summary` directly with stores loaded once per call,
 /// not once per record.
-pub(super) fn summarize_from_disk(
+pub(crate) fn summarize_from_disk(
     app: &AppHandle,
     record: &ManagedAgentRecord,
     runtimes: &std::collections::HashMap<
@@ -184,6 +184,15 @@ pub(super) async fn start_local_agent_with_preflight(
     if record_snapshot.backend != BackendKind::Local {
         return Err(format!("agent {pubkey} is not a local agent"));
     }
+    let execution = record_snapshot
+        .execution
+        .as_ref()
+        .ok_or("Choose a connection in Execution before starting this agent")?;
+    let connection = crate::connections::get(app, &execution.connection_id)?;
+    if connection.target != buzz_connections::model::Target::Local {
+        return Err("Execution connection is not this device".into());
+    }
+    execution.validate(&connection)?;
 
     // Preflight against the same resolution spawn uses — `resolve_effective_config`
     // (definition → global fallback). A linked instance's own `provider`/`model`/
@@ -339,10 +348,21 @@ pub async fn list_managed_agents(app: AppHandle) -> Result<Vec<ManagedAgentSumma
 
 #[tauri::command]
 pub async fn create_managed_agent(
-    input: CreateManagedAgentRequest,
+    mut input: CreateManagedAgentRequest,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<CreateManagedAgentResponse, String> {
+    if let Some(execution) = &input.execution {
+        let _guard = state
+            .managed_agents_store_lock
+            .lock()
+            .map_err(|e| e.to_string())?;
+        let connection = crate::connections::get(&app, &execution.connection_id)?;
+        execution.validate(&connection)?;
+        input.backend = super::connections_execution::backend_for(&connection);
+        input.start_on_app_launch = false;
+        input.spawn_after_create = false;
+    }
     let name = input.name.trim().to_string();
     let requested_persona_id = input
         .persona_id
@@ -426,7 +446,9 @@ pub async fn create_managed_agent(
     if let BackendKind::Provider { ref config, ref id } = input.backend {
         validate_provider_config(config)?;
         // Validate via discovered candidates — not raw resolve_command.
-        resolve_provider_binary(id)?;
+        if input.execution.is_none() {
+            resolve_provider_binary(id)?;
+        }
     }
 
     let relay_mesh = normalize_relay_mesh(input.relay_mesh.as_ref(), &input.backend)?;
@@ -598,7 +620,11 @@ pub async fn create_managed_agent(
             input.parallelism,
             linked_persona.as_ref(),
         )?;
+        if let Some(execution) = &input.execution {
+            execution.validate(&crate::connections::get(&app, &execution.connection_id)?)?;
+        }
         let record = ManagedAgentRecord {
+            execution: input.execution.clone(),
             pubkey: pubkey.clone(),
             name: name.clone(),
             description: None,
@@ -649,7 +675,7 @@ pub async fn create_managed_agent(
             } else {
                 input.start_on_app_launch
             },
-            auto_restart_on_config_change: true,
+            auto_restart_on_config_change: input.execution.is_none(),
             runtime_pid: None,
             backend: input.backend.clone(),
             backend_agent_id: None,
@@ -824,6 +850,7 @@ pub async fn create_managed_agent(
 /// Data needed for background profile reconciliation after agent start.
 #[tauri::command]
 pub async fn start_managed_agent(
+    connection_input: Option<crate::connections::probe::ProbeInput>,
     pubkey: String,
     expected_relay_url: Option<String>,
     expected_signer_pubkey: Option<String>,
@@ -861,6 +888,7 @@ pub async fn start_managed_agent(
     )?;
     enum StartTarget {
         Local,
+        Connection,
         Provider {
             backend: BackendKind,
             cached_binary_path: Option<String>,
@@ -905,7 +933,9 @@ pub async fn start_managed_agent(
             reconcile_relay.as_str(),
         ));
 
-        let target = if record.backend == BackendKind::Local {
+        let target = if record.execution.is_some() && record.backend != BackendKind::Local {
+            StartTarget::Connection
+        } else if record.backend == BackendKind::Local {
             StartTarget::Local
         } else {
             StartTarget::Provider {
@@ -919,6 +949,19 @@ pub async fn start_managed_agent(
     };
 
     let result = match target {
+        StartTarget::Connection => {
+            crate::connections::launch::start(
+                &app,
+                &state,
+                &pubkey,
+                connection_input.unwrap_or_default(),
+                reconcile_relay.as_str(),
+                &owner_hex,
+                replay_floor_unix,
+                crate::connections::launch::Action::Start,
+            )
+            .await
+        }
         StartTarget::Local => {
             start_local_agent_with_preflight(
                 &app,
@@ -1117,15 +1160,13 @@ pub async fn delete_managed_agent(
             // remote deployment. The frontend sends force_remote_delete: true only after
             // the user confirms the orphan warning.
             if let Some(record) = records.iter().find(|r| r.pubkey == pubkey) {
-                if record.backend != BackendKind::Local
-                    && record.backend_agent_id.is_some()
-                    && !force_remote_delete.unwrap_or(false)
-                {
-                    return Err(
-                        "cannot delete a deployed remote agent without force_remote_delete: true"
-                            .to_string(),
-                    );
-                }
+                let uncertain = record.execution.is_some()
+                    && crate::connections::load(&app)?.has_unsettled_launch(&pubkey);
+                super::connections_execution::ensure_deletion_safe(
+                    record,
+                    uncertain,
+                    force_remote_delete.unwrap_or(false),
+                )?;
             }
 
             if !records.iter().any(|record| record.pubkey == pubkey) {
@@ -1163,6 +1204,7 @@ pub async fn delete_managed_agent(
 mod deploy;
 pub(super) mod provider_access;
 mod provider_deploy;
+pub(crate) use deploy::build_connection_deploy_payload;
 pub(super) use deploy::build_deploy_payload;
 #[cfg(test)]
 use deploy::{deploy_payload_json, DeployProjections};

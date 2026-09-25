@@ -116,6 +116,7 @@ export function AgentDropdownSelect({
   emptyOptionsLabel = "No options available",
   id,
   onValueChange,
+  openRequest,
   options,
   placeholder = "Select",
   placeholderClassName,
@@ -132,6 +133,8 @@ export function AgentDropdownSelect({
   emptyOptionsLabel?: string;
   id: string;
   onValueChange: (value: string) => void;
+  /** Increment to open the options after an explicit async discovery. */
+  openRequest?: number;
   options: readonly AgentDropdownOption[];
   placeholder?: string;
   placeholderClassName?: string;
@@ -144,6 +147,17 @@ export function AgentDropdownSelect({
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  const previousOpenRequest = React.useRef(openRequest);
+  React.useEffect(() => {
+    if (
+      openRequest !== undefined &&
+      openRequest !== previousOpenRequest.current
+    ) {
+      previousOpenRequest.current = openRequest;
+      setQuery("");
+      setOpen(true);
+    }
+  }, [openRequest]);
   const selectedOption = options.find((option) => option.value === value);
   const isPlaceholderSelection =
     selectedLabel === undefined &&

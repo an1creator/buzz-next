@@ -173,7 +173,11 @@ pub async fn restore_managed_agents_on_launch(
 
         let candidates: Vec<String> = records
             .iter()
-            .filter(|record| record.start_on_app_launch && record.backend == BackendKind::Local)
+            .filter(|record| {
+                record.execution.is_some()
+                    && record.start_on_app_launch
+                    && record.backend == BackendKind::Local
+            })
             .map(|record| record.pubkey.clone())
             .collect();
 

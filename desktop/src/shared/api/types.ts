@@ -1,3 +1,4 @@
+import type { AgentExecution } from "./tauriConnections";
 export type ChannelType = "stream" | "forum" | "dm";
 export type ChannelVisibility = "open" | "private";
 export type ChannelRole = "owner" | "admin" | "member" | "guest" | "bot";
@@ -300,6 +301,7 @@ export type AcpSessionPolicy = "channel" | "thread";
 import type { RestartDiffEntry } from "./restartDiff";
 export type { JsonValue, RestartChange, RestartDiffEntry } from "./restartDiff";
 export type ManagedAgent = {
+  execution?: AgentExecution | null;
   pubkey: string;
   name: string;
   personaId: string | null;
@@ -330,7 +332,7 @@ export type ManagedAgent = {
   systemPrompt: string | null;
   avatarUrl: string | null;
   model: string | null;
-  modelSource: "definition" | "global" | "instance_legacy" | null;
+  modelSource: "definition" | "global" | "instance_legacy" | "execution" | null;
   /** LLM inference provider, from the agent's pinned record snapshot. */
   provider: string | null;
   /** True when the linked persona has been edited since this agent was created. */
@@ -392,6 +394,7 @@ export type RelayMeshConfig = {
 };
 
 export type CreateManagedAgentInput = {
+  execution?: AgentExecution;
   name: string;
   personaId?: string;
   /** Team this instance was deployed from; controls runtime team instructions. */

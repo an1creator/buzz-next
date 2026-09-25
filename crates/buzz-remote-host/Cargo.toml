@@ -1,0 +1,36 @@
+[package]
+name = "buzz-remote-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Autonomous SSH Connection host for Buzz"
+
+[[bin]]
+name = "buzz-host"
+path = "src/main.rs"
+
+[[bin]]
+name = "buzz-codex-connection"
+path = "src/codex_main.rs"
+
+[dependencies]
+buzz-connections = { path = "../buzz-connections" }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std"] }
+uuid.workspace = true
+nostr.workspace = true
+url.workspace = true
+zeroize.workspace = true
+fs2 = "0.4"
+atomic-write-file = "0.3"
+futures-util.workspace = true
+tokio-util.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+buzz-sdk = { path = "../buzz-sdk" }
+buzz-ws-client = { path = "../buzz-ws-client" }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

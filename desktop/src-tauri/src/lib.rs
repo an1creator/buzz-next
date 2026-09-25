@@ -6,6 +6,7 @@ mod build_identity;
 mod builderlab;
 mod channel_head_cache;
 mod commands;
+mod connections;
 mod deep_link;
 mod egress_guard;
 mod event_sync;
@@ -525,6 +526,22 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::list_ssh_config_hosts,
+            commands::resolve_ssh_config_host,
+            commands::test_execution_connection,
+            commands::set_agent_execution,
+            commands::confirm_execution_stopped,
+            commands::execution_connection_dependents,
+            commands::validate_execution_directory,
+            commands::get_connection_models,
+            commands::get_agent_execution_status,
+            commands::execution_connection_has_credentials,
+            commands::connection_setup_guidance,
+            commands::cancel_execution_connection_check,
+            commands::list_execution_connections,
+            commands::save_execution_connection,
+            commands::delete_execution_connection,
+            commands::pick_connection_file,
             terminal_runtime::terminal_attach,
             terminal_runtime::terminal_detach,
             terminal_runtime::terminal_close,

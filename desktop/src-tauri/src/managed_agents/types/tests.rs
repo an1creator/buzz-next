@@ -52,6 +52,10 @@ fn managed_agent_record_without_auth_tag_deserializes() {
     assert_eq!(record.auth_tag, None);
     assert_eq!(record.avatar_url, None);
     assert_eq!(record.pubkey, "abcd1234");
+    assert!(
+        record.execution.is_none(),
+        "legacy records must not acquire a connection"
+    );
 }
 
 /// Agent records WITH an auth_tag round-trip correctly through serde.
@@ -748,6 +752,7 @@ fn summary_fixture(
     restart_diff: Vec<crate::managed_agents::spawn_snapshot::RestartDiffEntry>,
 ) -> super::ManagedAgentSummary {
     super::ManagedAgentSummary {
+        execution: None,
         session_policy: Default::default(),
         pubkey: "aa".repeat(32),
         name: "test".into(),
@@ -831,4 +836,27 @@ fn summary_with_drift_serializes_restart_diff_entries() {
             "change": { "kind": "value", "before": "gpt-5", "after": "claude-4" },
         }]))
     );
+}
+
+#[test]
+fn published_provider_record_preserves_identity_without_migrating_to_connections() {
+    // Non-secret schema fixture for the published provider-v1 record.
+    let value = serde_json::json!({
+        "pubkey":"existing-agent", "name":"Existing", "persona_id":"definition", "relay_url":"wss://example.test",
+        "acp_command":"buzz-acp", "agent_command":"codex-acp", "agent_args":[], "mcp_command":"",
+        "turn_timeout_seconds":0, "system_prompt":null, "created_at":"before", "updated_at":"before",
+        "last_started_at":null, "last_stopped_at":null, "last_exit_code":null, "last_error":null,
+        "backend":{"type":"provider", "id":"buzz-host", "config":{"profile":"shared-codex"}},
+        "backend_agent_id":"existing-deployment"
+    });
+    let record: ManagedAgentRecord = serde_json::from_value(value).unwrap();
+    assert!(record.execution.is_none());
+    assert_eq!(record.persona_id.as_deref(), Some("definition"));
+    assert_eq!(
+        record.backend_agent_id.as_deref(),
+        Some("existing-deployment")
+    );
+    let serialized = serde_json::to_value(record).unwrap();
+    assert_eq!(serialized["backend"]["config"]["profile"], "shared-codex");
+    assert_eq!(serialized["pubkey"], "existing-agent");
 }

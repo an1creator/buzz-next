@@ -1264,6 +1264,7 @@ fn make_pair_runtime_placeholder() -> crate::managed_agents::ManagedAgentPairRun
         .spawn()
         .expect("spawn true for placeholder");
     let process = crate::managed_agents::ManagedAgentProcess {
+        execution_directory: None,
         child,
         log_path: Default::default(),
         spawn_config: crate::managed_agents::spawn_snapshot::prospective_spawn_config_snapshot(

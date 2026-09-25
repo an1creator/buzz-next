@@ -167,6 +167,7 @@ fn validate_team_deletion_rejects_built_ins() {
 
 fn managed_agent(name: &str) -> ManagedAgentRecord {
     ManagedAgentRecord {
+        execution: None,
         session_policy: Default::default(),
         description: None,
         pubkey: name.to_string(),
