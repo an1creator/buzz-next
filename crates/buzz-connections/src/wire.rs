@@ -85,3 +85,23 @@ pub enum InspectRequest {
 pub struct DirectoryInfo {
     pub path: String,
 }
+
+/// Canonical relay scope shared by Desktop and the execution host.
+pub fn canonical_relay(raw: &str) -> Result<String, String> {
+    let mut url = url::Url::parse(raw.trim()).map_err(|_| "Invalid relay URL".to_string())?;
+    if !matches!(url.scheme(), "ws" | "wss")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(
+            "Relay must be a ws/wss endpoint without credentials, query or fragment".into(),
+        );
+    }
+    if url.path() == "/" {
+        url.set_path("");
+    }
+    Ok(url.to_string().trim_end_matches('/').to_string())
+}

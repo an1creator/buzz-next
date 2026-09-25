@@ -146,6 +146,9 @@ pub struct UpdatePersonaRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateManagedAgentRequest {
+    /// Device-local execution selection, never part of the portable persona.
+    #[serde(default)]
+    pub execution: Option<buzz_connections::model::Execution>,
     pub name: String,
     #[serde(default)]
     pub persona_id: Option<String>,

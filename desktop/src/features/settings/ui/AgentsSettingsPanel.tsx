@@ -1,11 +1,9 @@
-import { AgentDefaultsSettingsCard } from "./AgentDefaultsSettingsCard";
+import { ConnectionsSettingsPanel } from "@/features/connections/ConnectionsSettingsPanel";
 import {
   setKeepMentionedAgentsPinned,
   useKeepMentionedAgentsPinned,
 } from "@/features/messages/lib/autoPinMentionedAgentsPreference";
 import { Switch } from "@/shared/ui/switch";
-import { HarnessesSettingsPanel } from "./HarnessesSettingsPanel";
-import { PreventSleepSettingsCard } from "./PreventSleepSettingsCard";
 import {
   SettingsOptionGroup,
   SettingsOptionGroupList,
@@ -20,7 +18,7 @@ export function AgentsSettingsPanel() {
     <section className="min-w-0" data-testid="settings-agents">
       <SettingsSectionHeader
         title="Agents"
-        description="Control how agents behave in conversations and run on this machine."
+        description="Control agent conversations and connections to execution devices."
       />
 
       <SettingsOptionGroupList>
@@ -48,9 +46,7 @@ export function AgentsSettingsPanel() {
             />
           </SettingsOptionRow>
         </SettingsOptionGroup>
-        <PreventSleepSettingsCard />
-        <HarnessesSettingsPanel />
-        <AgentDefaultsSettingsCard />
+        <ConnectionsSettingsPanel />
       </SettingsOptionGroupList>
     </section>
   );

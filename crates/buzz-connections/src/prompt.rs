@@ -12,7 +12,7 @@ use tokio::{
 use zeroize::Zeroizing;
 
 /// Inputs exist in memory for one explicit operation; no Debug/Serialize implementation.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Answers {
     pub password: Zeroizing<String>,
     pub passphrase: Zeroizing<String>,

@@ -44,6 +44,7 @@ struct Ticket {
     target: Target,
     result: ProbeResult,
     created: Instant,
+    credential_digest: String,
 }
 fn tickets() -> &'static Mutex<HashMap<String, Ticket>> {
     static TICKETS: OnceLock<Mutex<HashMap<String, Ticket>>> = OnceLock::new();
@@ -54,6 +55,7 @@ pub(crate) fn remember(
     owner: String,
     connection: &Connection,
     mut result: ProbeResult,
+    credentials: (&str, &str),
 ) -> Result<ProbeResult, String> {
     let mut tickets = tickets().lock().map_err(|e| e.to_string())?;
     tickets.retain(|_, ticket| ticket.created.elapsed() < Duration::from_secs(300));
@@ -68,6 +70,7 @@ pub(crate) fn remember(
             target: connection.target.clone(),
             result: result.clone(),
             created: Instant::now(),
+            credential_digest: credential_digest(&result.ticket, credentials),
         },
     );
     Ok(result)
@@ -77,6 +80,7 @@ pub(crate) fn checked(
     owner: &str,
     connection: &Connection,
     ticket: &str,
+    credentials: Option<&super::SavedCredentials>,
 ) -> Result<ConnectionCheck, String> {
     let tickets = tickets().lock().map_err(|e| e.to_string())?;
     let ticket = tickets
@@ -87,6 +91,14 @@ pub(crate) fn checked(
         || ticket.created.elapsed() >= Duration::from_secs(300)
     {
         return Err("Connection changed or check expired. Check again.".into());
+    }
+    if credentials.is_some_and(|credentials| {
+        credential_digest(
+            &ticket.result.ticket,
+            (&credentials.password, &credentials.passphrase),
+        ) != ticket.credential_digest
+    }) {
+        return Err("Credentials changed after the check. Check again.".into());
     }
     let mut check = ticket.result.check.clone();
     check.revision = connection.revision;
@@ -173,4 +185,14 @@ pub(crate) async fn inspect(
         CheckOutcome::HarnessSetupRequired
     };
     Ok(result)
+}
+
+fn credential_digest(ticket: &str, credentials: (&str, &str)) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hash = Sha256::new();
+    for value in [ticket, credentials.0, credentials.1] {
+        hash.update((value.len() as u64).to_be_bytes());
+        hash.update(value.as_bytes());
+    }
+    format!("{:x}", hash.finalize())
 }

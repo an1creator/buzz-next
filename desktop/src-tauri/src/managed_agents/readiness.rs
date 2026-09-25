@@ -127,6 +127,12 @@ pub(crate) fn resolve_effective_harness_descriptor(
     personas: &[crate::managed_agents::types::AgentDefinition],
     global: &crate::managed_agents::GlobalAgentConfig,
 ) -> Result<EffectiveHarnessDescriptor, String> {
+    let connection_defaults = crate::managed_agents::GlobalAgentConfig::default();
+    let global = if record.execution.is_some() {
+        &connection_defaults
+    } else {
+        global
+    };
     let effective_command = crate::managed_agents::try_record_agent_command(record, personas)?;
     let runtime_meta = known_acp_runtime(&effective_command);
 
@@ -134,8 +140,10 @@ pub(crate) fn resolve_effective_harness_descriptor(
     // Resolution order: record.runtime → persona.runtime → "".
     let harness_def = {
         let runtime_id = record
-            .runtime
-            .as_deref()
+            .execution
+            .as_ref()
+            .and_then(|execution| execution.harness_id.as_deref())
+            .or(record.runtime.as_deref())
             .or_else(|| {
                 record.persona_id.as_deref().and_then(|pid| {
                     personas

@@ -537,6 +537,8 @@ pub struct ManagedAgentProcess {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ManagedAgentSummary {
+    /// Desired machine-specific execution settings.
+    pub execution: Option<buzz_connections::model::Execution>,
     pub pubkey: String,
     pub name: String,
     pub persona_id: Option<String>,

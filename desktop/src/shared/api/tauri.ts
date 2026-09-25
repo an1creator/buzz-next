@@ -1,3 +1,4 @@
+import type { AgentExecution } from "./tauriConnections";
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import {
   fromRawInstallRuntimeResult,
@@ -110,6 +111,7 @@ type RawRelayAgent = {
 };
 import type { RestartDiffEntry as RawRestartDiffEntry } from "./restartDiff";
 export type RawManagedAgent = {
+  execution?: AgentExecution | null;
   pubkey: string;
   name: string;
   persona_id: string | null;
@@ -587,6 +589,7 @@ function fromRawRelayAgent(agent: RawRelayAgent): RelayAgent {
 
 export function fromRawManagedAgent(agent: RawManagedAgent): ManagedAgent {
   return {
+    execution: agent.execution ?? null,
     pubkey: agent.pubkey,
     name: agent.name,
     personaId: agent.persona_id,
@@ -746,6 +749,7 @@ export async function createManagedAgent(input: CreateManagedAgentInput) {
     "create_managed_agent",
     {
       input: {
+        execution: input.execution,
         name: input.name,
         personaId: input.personaId,
         teamId: input.teamId,

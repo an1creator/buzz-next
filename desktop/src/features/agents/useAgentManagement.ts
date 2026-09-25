@@ -163,25 +163,28 @@ export function useAgentManagement() {
     setError(null);
     try {
       assertAgentCanActFromOrigin(request.request.channelId);
-      const runtimes = await availableRuntimesForStart(runtimesQuery);
+      const runtimes =
+        backendIntent?.type === "connection"
+          ? []
+          : await availableRuntimesForStart(runtimesQuery);
       const runtime = runtimes.find(
         (candidate) => candidate.id === input.runtime,
       );
-      if (!runtime) {
+      if (!runtime && backendIntent?.type !== "connection") {
         throw new Error("Choose an available runtime for this agent.");
       }
 
       const avatarUrl = await resolveManagedAgentAvatarUrl(
         input.avatarUrl,
         undefined,
-        runtime.avatarUrl,
+        runtime?.avatarUrl,
       );
       const persona = await createPersonaMutation.mutateAsync({
         ...input,
         avatarUrl,
       });
 
-      if (intent === "definition_start") {
+      if (intent === "definition_start" || intent === "definition_instance") {
         const created = await createAgentMutation.mutateAsync(
           await buildInstanceInputForDefinition(
             persona,

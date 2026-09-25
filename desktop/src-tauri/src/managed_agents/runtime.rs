@@ -329,6 +329,7 @@ pub fn build_managed_agent_summary(
         .to_string();
 
     Ok(ManagedAgentSummary {
+        execution: record.execution.clone(),
         pubkey: record.pubkey.clone(),
         name: record.name.clone(),
         persona_id: record.persona_id.clone(),
@@ -598,7 +599,11 @@ pub fn spawn_agent_child(
     );
 
     let mut command = std::process::Command::new(&resolved_acp_command);
-    if let Some(home) = super::default_agent_workdir() {
+    if let Some(execution) = &record.execution {
+        command.current_dir(crate::connections::directory::local_directory(
+            &execution.directory,
+        )?);
+    } else if let Some(home) = super::default_agent_workdir() {
         command.current_dir(home);
     }
     command.stdin(std::process::Stdio::null());

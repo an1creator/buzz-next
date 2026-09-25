@@ -1107,6 +1107,7 @@ dependencies = [
  "sha2 0.11.0",
  "shlex 1.3.0",
  "tokio",
+ "url",
  "uuid",
  "windows 0.62.2",
  "zeroize",

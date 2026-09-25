@@ -1,3 +1,7 @@
+pub(crate) mod connections_execution;
+pub use connections_execution::set_agent_execution;
+mod connections_directory;
+pub use connections_directory::*;
 mod connections;
 pub use connections::*;
 pub mod admin;
@@ -13,7 +17,7 @@ mod agent_models_env;
 mod agent_providers;
 mod agent_settings;
 mod agent_update_rollback;
-mod agents;
+pub(crate) mod agents;
 mod bestie;
 mod canvas;
 mod channel_reconnect_repair;

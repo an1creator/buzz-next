@@ -1,3 +1,5 @@
+import { ExecutionFields } from "@/features/connections/ExecutionFields";
+import type { AgentExecution } from "@/shared/api/tauriConnections";
 import * as React from "react";
 
 import type {
@@ -6,10 +8,7 @@ import type {
   ManagedAgent,
   UpdatePersonaInput,
 } from "@/shared/api/types";
-import {
-  runLocationForBackend,
-  runLocationForRunOn,
-} from "../lib/agentAccessWarning";
+import { runLocationForBackend } from "../lib/agentAccessWarning";
 import { AgentRunLocationProvider } from "./AgentRunLocationContext";
 import type { BackendIntent } from "../lib/instanceInputForDefinition";
 import type { AgentCreateIntent } from "./agentCreateIntent";
@@ -20,12 +19,6 @@ import {
   AgentDefinitionDialog,
   type AgentDefinitionSubmitOptions,
 } from "./AgentDefinitionDialog";
-import { WhereToRunSection } from "./WhereToRunSection";
-import {
-  canSubmitWhereToRun,
-  emptyWhereToRunDraft,
-  resolveBackendIntent,
-} from "./whereToRunIntent";
 
 type AgentDialogCreateProps = {
   mode: "definition";
@@ -134,7 +127,11 @@ function AgentCreateDialogRouter({
   onDirtyChange,
   onSubmitDefinition,
 }: AgentDialogCreateProps) {
-  const [runDraft, setRunDraft] = React.useState(emptyWhereToRunDraft);
+  const [execution, setExecution] = React.useState<AgentExecution | null>(null);
+  const [editingConnection, setEditingConnection] = React.useState(false);
+  const [runLocation, setRunLocation] = React.useState<
+    "local" | "remote" | null
+  >(null);
   const initialValues = React.useMemo(
     () => providedInitialValues ?? createPersonaDialogState().initialValues,
     [providedInitialValues],
@@ -145,19 +142,20 @@ function AgentCreateDialogRouter({
   return (
     // The create flow is the one surface that knows where the agent will run,
     // because it owns the "Run on" draft.
-    <AgentRunLocationProvider runLocation={runLocationForRunOn(runDraft.runOn)}>
+    <AgentRunLocationProvider runLocation={runLocation}>
       <AgentDefinitionDialog
-        createRunSection={
-          <WhereToRunSection
-            draft={runDraft}
-            isPending={isDefinitionPending}
-            onDraftChange={(nextDraft) => {
-              setRunDraft(nextDraft);
+        executionSection={
+          <ExecutionFields
+            value={execution}
+            onChange={(next) => {
+              setExecution(next);
               onDirtyChange?.(true);
             }}
+            onEditingChange={setEditingConnection}
+            onLocationChange={setRunLocation}
           />
         }
-        createSubmitBlocked={!canSubmitWhereToRun(runDraft)}
+        createSubmitBlocked={!execution || editingConnection}
         description={copy.description}
         embedded={embedded}
         error={definitionError}
@@ -168,8 +166,8 @@ function AgentCreateDialogRouter({
         onSubmit={async (input) => {
           const submitted = await onSubmitDefinition(
             input,
-            "definition_start",
-            resolveBackendIntent(runDraft),
+            "definition_instance",
+            execution ? { type: "connection", execution } : null,
           );
           if (submitted) {
             onDirtyChange?.(false);
@@ -179,7 +177,7 @@ function AgentCreateDialogRouter({
         open
         runtimes={runtimes}
         runtimeCatalogStatus={runtimeCatalogStatus}
-        submitLabel={submitLabel ?? copy.submitLabel}
+        submitLabel={submitLabel ?? "Save agent"}
         title={copy.title}
       />
     </AgentRunLocationProvider>

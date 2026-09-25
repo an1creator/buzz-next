@@ -884,3 +884,33 @@ fn linked_record_with_legacy_bytes_inherits_global_not_mesh() {
     assert_eq!(cfg.model.value.as_deref(), Some("gpt-5"));
     assert_eq!(cfg.relay_mesh_model_id(), None);
 }
+
+#[test]
+fn execution_model_does_not_inherit_a_different_machines_defaults() {
+    let mut record = record(Some("persona"), None, None, None);
+    record.execution = Some(buzz_connections::model::Execution {
+        connection_id: uuid::Uuid::new_v4().to_string(),
+        harness_id: Some("remote".into()),
+        model: None,
+        directory: Default::default(),
+    });
+    let definition = definition(
+        "persona",
+        Some("persona-model"),
+        None,
+        "Keep these instructions",
+    );
+    let mut global = GlobalAgentConfig::default();
+    global.model = Some("desktop-only-model".into());
+    global.provider = Some("desktop-only-provider".into());
+    let effective = resolve_effective_config(&record, &[definition], &global)
+        .require_resolved()
+        .unwrap();
+    assert_eq!(effective.model.value, None);
+    assert_eq!(effective.model.source, ConfigSource::Execution);
+    assert_eq!(effective.provider.value, None);
+    assert_eq!(
+        effective.system_prompt.value.as_deref(),
+        Some("Keep these instructions")
+    );
+}

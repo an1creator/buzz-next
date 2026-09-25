@@ -1,5 +1,8 @@
 //! Device-local connection persistence. Callers hold managed_agents_store_lock.
 pub(crate) mod credentials;
+pub(crate) mod directory;
+pub(crate) mod launch;
+pub(crate) mod operations;
 pub(crate) mod probe;
 use buzz_connections::{model::Connection, registry::Registry};
 pub(crate) use credentials::{cleanup_credentials, save_credentials, SavedCredentials};
@@ -16,6 +19,8 @@ pub(crate) struct Store {
     pub credentials: BTreeMap<String, String>,
     #[serde(default)]
     pub pending_secret_cleanup: Vec<String>,
+    #[serde(default)]
+    pub launches: BTreeMap<String, launch::Attempt>,
 }
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {

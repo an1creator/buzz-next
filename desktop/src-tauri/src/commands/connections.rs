@@ -41,8 +41,18 @@ pub fn save_execution_connection(
         .cloned();
     let mut registry = store.registry.clone();
     let mut saved = registry.save(connection, expected_revision)?;
+    if credentials.is_some() {
+        saved.check = None;
+        if let Some(record) = registry
+            .connections
+            .iter_mut()
+            .find(|item| item.id == saved.id)
+        {
+            record.check = None;
+        }
+    }
     if let Some(ticket) = check_ticket {
-        let check = connections::probe::checked(&owner, &saved, &ticket)?;
+        let check = connections::probe::checked(&owner, &saved, &ticket, credentials.as_ref())?;
         registry.record_check(&saved.id, check.clone())?;
         saved.check = Some(check);
     }
@@ -151,6 +161,7 @@ pub async fn pick_connection_file(
 /// Check a draft without saving it. Secret inputs live only for this operation.
 #[tauri::command]
 pub async fn test_execution_connection(
+    operation_id: String,
     connection: Connection,
     input: connections::probe::ProbeInput,
     app: AppHandle,
@@ -188,11 +199,22 @@ pub async fn test_execution_connection(
     answers
         .trusted_prompts
         .extend(input.approved_host_prompts.iter().cloned());
-    let result = connections::probe::inspect(app, &connection, answers).await?;
+    let credential_password = answers.password.clone();
+    let credential_passphrase = answers.passphrase.clone();
+    let (_operation, mut cancellation) = connections::operations::begin(&owner, &operation_id)?;
+    let result = tokio::select! {
+        result = connections::probe::inspect(app, &connection, answers) => result?,
+        _ = cancellation.changed() => return Err("Connection check cancelled".into()),
+    };
     if super::agents::workspace_owner_hex(&state)? != owner {
         return Err("Identity changed during the connection check".into());
     }
-    connections::probe::remember(owner, &connection, result)
+    connections::probe::remember(
+        owner,
+        &connection,
+        result,
+        (&credential_password, &credential_passphrase),
+    )
 }
 
 /// List aliases without running SSH config commands or attempting a network connection.
@@ -250,4 +272,37 @@ pub async fn resolve_ssh_config_host(
     Ok(
         serde_json::json!({"host":values.get("hostname"),"username":values.get("user"),"port":values.get("port")}),
     )
+}
+
+/// Cancel only the current identity's explicit check; dropping the SSH future kills its tree.
+#[tauri::command]
+pub fn cancel_execution_connection_check(
+    operation_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let owner = super::agents::workspace_owner_hex(&state)?;
+    connections::operations::cancel(&owner, &operation_id)
+}
+
+/// Names of referencing instances; checked again atomically on deletion.
+#[tauri::command]
+pub fn execution_connection_dependents(
+    id: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let _guard = state
+        .managed_agents_store_lock
+        .lock()
+        .map_err(|e| e.to_string())?;
+    Ok(crate::managed_agents::load_managed_agents(&app)?
+        .into_iter()
+        .filter(|record| {
+            record
+                .execution
+                .as_ref()
+                .is_some_and(|execution| execution.connection_id == id)
+        })
+        .map(|record| serde_json::json!({"name":record.name,"pubkey":record.pubkey}))
+        .collect())
 }

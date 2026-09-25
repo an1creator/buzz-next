@@ -8,6 +8,15 @@ Plan of record: `Buzz/Harness-Provider-Model.md` in Morgan's Obsidian vault
 (PR sequence, decisions log). PRs: #2140 (rename), #2148 (flag reduction),
 #2156 (honest model states), #2158 (Agent Config Core).
 
+## SSH Connections execution surfaces
+
+Connections-based Create exposes Execution (Connection, Harness, Model, Working
+directory) before Advanced and permits saving a stopped, unready instance.
+This is the explicit product contract for that flow; the legacy Advanced-only
+Run on and local-readiness save gates below do not apply to it. Start owns
+readiness validation. Device paths and SSH settings belong to the instance,
+never its portable persona. Connection defaults affect new drafts only.
+
 ## The one rule
 
 **Harness capability facts have exactly one source: the Rust runtime catalog.**

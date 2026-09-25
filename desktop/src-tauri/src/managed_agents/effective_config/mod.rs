@@ -15,6 +15,7 @@ pub enum ConfigSource {
     Definition,
     Global,
     InstanceLegacy,
+    Execution,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -249,7 +250,13 @@ pub fn resolve_effective_config(
     definitions: &[AgentDefinition],
     global: &GlobalAgentConfig,
 ) -> EffectiveConfigResult {
-    match &record.persona_id {
+    let connection_defaults = GlobalAgentConfig::default();
+    let global = if record.execution.is_some() {
+        &connection_defaults
+    } else {
+        global
+    };
+    let mut result = match &record.persona_id {
         Some(pid) => match definitions.iter().find(|d| d.id == *pid) {
             Some(def) => EffectiveConfigResult::Resolved(resolve_linked(def, global)),
             None => EffectiveConfigResult::OrphanedInstance {
@@ -258,7 +265,16 @@ pub fn resolve_effective_config(
             },
         },
         None => EffectiveConfigResult::Resolved(resolve_definition_less(record, global)),
+    };
+    if let (Some(execution), EffectiveConfigResult::Resolved(config)) =
+        (&record.execution, &mut result)
+    {
+        config.model = ResolvedField {
+            value: execution.model.clone(),
+            source: ConfigSource::Execution,
+        };
     }
+    result
 }
 
 pub fn resolve_effective_model_provider_pair(

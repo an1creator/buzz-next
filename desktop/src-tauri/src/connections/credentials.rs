@@ -62,6 +62,7 @@ pub(crate) fn cleanup_credentials(app: &AppHandle, store: &mut Store) -> Result<
         if store.credentials.values().any(|bound| bound == &key) {
             return Err("Invalid credential cleanup reference".into());
         }
+        validate_reference(&key, None)?;
         secrets.delete(&key)?;
         store
             .pending_secret_cleanup
@@ -82,6 +83,7 @@ pub(crate) fn answers(
         .credentials
         .get(&super::credential_scope(owner, connection_id))
     {
+        validate_reference(reference, Some(owner))?;
         let encoded = keyring()?
             .load(reference)?
             .ok_or("Saved SSH credentials are unavailable. Enter them again.")?;
@@ -92,4 +94,36 @@ pub(crate) fn answers(
         answers.passphrase = zeroize::Zeroizing::new(passphrase);
     }
     Ok(answers)
+}
+
+/// Restrict cleanup and reads to this feature's credential namespace.
+pub(crate) fn validate_reference(reference: &str, owner: Option<&str>) -> Result<(), String> {
+    let mut parts = reference.split(':');
+    let prefix = parts.next();
+    let identity = parts.next().unwrap_or_default();
+    let id = parts.next().unwrap_or_default();
+    if prefix != Some("ssh")
+        || identity.len() != 64
+        || !identity.bytes().all(|c| c.is_ascii_hexdigit())
+        || owner.is_some_and(|owner| owner != identity)
+        || uuid::Uuid::parse_str(id).is_err()
+        || parts.next().is_some()
+    {
+        return Err("Invalid SSH credential reference".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_reference;
+    #[test]
+    fn references_cannot_read_other_owners_or_delete_unrelated_secrets() {
+        let owner = "a".repeat(64);
+        let reference = format!("ssh:{owner}:{}", uuid::Uuid::new_v4());
+        assert!(validate_reference(&reference, Some(&owner)).is_ok());
+        assert!(validate_reference(&reference, Some(&"b".repeat(64))).is_err());
+        assert!(validate_reference("identity-private-key", None).is_err());
+        assert!(validate_reference("ssh:invalid:invalid", None).is_err());
+    }
 }

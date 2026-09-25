@@ -1,3 +1,4 @@
+import type { AgentExecution } from "@/shared/api/tauriConnections";
 import type {
   AcpRuntime,
   AcpRuntimeCatalogEntry,
@@ -82,11 +83,13 @@ export function resolveStartRuntimeForDefinition(
  *   is true because the preset commands deliberately override the
  *   definition's runtime preference.
  */
-export type BackendIntent = {
-  type: "provider";
-  id: string;
-  config: Record<string, unknown>;
-};
+export type BackendIntent =
+  | { type: "connection"; execution: AgentExecution }
+  | {
+      type: "provider";
+      id: string;
+      config: Record<string, unknown>;
+    };
 
 /**
  * The single definition→instance mapping (Phase 1B.3.5 rows 2–4). Every
@@ -109,7 +112,7 @@ export type BackendIntent = {
  */
 export async function buildInstanceInputForDefinition(
   persona: AgentPersona,
-  runtime: AcpRuntime,
+  runtime: AcpRuntime | undefined,
   upload?: UploadMediaBytes,
   backendIntent?: BackendIntent,
 ): Promise<CreateManagedAgentInput> {
@@ -125,6 +128,14 @@ export async function buildInstanceInputForDefinition(
     avatarUrl,
   };
 
+  if (backendIntent?.type === "connection") {
+    return {
+      ...base,
+      execution: backendIntent.execution,
+      spawnAfterCreate: false,
+      startOnAppLaunch: false,
+    };
+  }
   if (backendIntent?.type === "provider") {
     return {
       ...base,
@@ -139,6 +150,7 @@ export async function buildInstanceInputForDefinition(
     };
   }
 
+  if (!runtime) throw new Error("Choose an available runtime for this agent.");
   return {
     ...base,
     acpCommand: persona.acpCommand || "buzz-acp",

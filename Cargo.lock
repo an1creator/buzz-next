@@ -1157,6 +1157,7 @@ dependencies = [
  "shlex",
  "tempfile",
  "tokio",
+ "url",
  "uuid",
  "windows 0.62.2",
  "zeroize",
