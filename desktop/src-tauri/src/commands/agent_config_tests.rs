@@ -31,6 +31,7 @@ fn with_no_goose_config<T>(body: impl FnOnce() -> T) -> T {
 fn goose_runtime() -> &'static KnownAcpRuntime {
     static RUNTIME: KnownAcpRuntime = KnownAcpRuntime {
         id: "goose",
+        default_args: &[],
         label: "Goose",
         commands: &["goose"],
         aliases: &[],

@@ -972,6 +972,7 @@ mod tests {
     ) -> KnownAcpRuntime {
         KnownAcpRuntime {
             id: "test-cli-runtime",
+            default_args: &[],
             label: "Test CLI",
             commands,
             aliases: &[],
@@ -1166,6 +1167,7 @@ mod tests {
     ) -> KnownAcpRuntime {
         KnownAcpRuntime {
             id: "codex",
+            default_args: &[],
             label: "Codex",
             commands: adapter_commands,
             aliases: &[],
