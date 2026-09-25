@@ -106,7 +106,8 @@ pub(crate) async fn start(
         Some(expected_relay),
         &crate::relay::relay_api_base_url_with_override(state),
     )?;
-    let mut answers = probe::answers_for_input(&store, &owner, &connection.id, &input)?;
+    let mut answers = probe::answers_for_input(&store, &owner, &connection.id, &input)
+        .map_err(|_| "SSH_AUTH_REQUIRED: Saved SSH credentials are unavailable. Enter credentials for this operation.".to_string())?;
     if !input.password.is_empty() {
         answers.password = zeroize::Zeroizing::new(input.password.clone());
     }
