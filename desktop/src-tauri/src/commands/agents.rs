@@ -184,6 +184,15 @@ pub(super) async fn start_local_agent_with_preflight(
     if record_snapshot.backend != BackendKind::Local {
         return Err(format!("agent {pubkey} is not a local agent"));
     }
+    let execution = record_snapshot
+        .execution
+        .as_ref()
+        .ok_or("Choose a connection in Execution before starting this agent")?;
+    let connection = crate::connections::get(app, &execution.connection_id)?;
+    if connection.target != buzz_connections::model::Target::Local {
+        return Err("Execution connection is not this device".into());
+    }
+    execution.validate(&connection)?;
 
     // Preflight against the same resolution spawn uses — `resolve_effective_config`
     // (definition → global fallback). A linked instance's own `provider`/`model`/
@@ -666,7 +675,7 @@ pub async fn create_managed_agent(
             } else {
                 input.start_on_app_launch
             },
-            auto_restart_on_config_change: true,
+            auto_restart_on_config_change: input.execution.is_none(),
             runtime_pid: None,
             backend: input.backend.clone(),
             backend_agent_id: None,
@@ -946,7 +955,7 @@ pub async fn start_managed_agent(
                 &state,
                 &pubkey,
                 connection_input.unwrap_or_default(),
-                &reconcile_relay,
+                reconcile_relay.as_str(),
                 &owner_hex,
                 replay_floor_unix,
             )

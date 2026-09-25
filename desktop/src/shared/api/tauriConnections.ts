@@ -3,7 +3,7 @@ import {
   fromRawAcpRuntimeCatalogEntry,
   type RawAcpRuntimeCatalogEntry,
 } from "./tauri";
-import type { AcpRuntimeCatalogEntry } from "./types";
+import type { AcpRuntimeCatalogEntry, AgentModelsResponse } from "./types";
 
 export type SshAuthentication =
   | { method: "password" }
@@ -132,4 +132,18 @@ export const validateExecutionDirectory = (
     expectedRevision: connection.revision,
     directory,
     input,
+  });
+
+export const getConnectionModels = (
+  connection: ExecutionConnection,
+  harnessId: string,
+  input: ConnectionProbeInput,
+  operationId: string,
+) =>
+  invokeTauri<AgentModelsResponse>("get_connection_models", {
+    connectionId: connection.id,
+    expectedRevision: connection.revision,
+    harnessId,
+    input,
+    operationId,
   });

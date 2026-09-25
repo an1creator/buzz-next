@@ -158,7 +158,11 @@ pub(crate) fn resolve_effective_harness_descriptor(
 
     // Args: explicit non-empty instance args win; otherwise use definition args.
     let args = {
-        let record_args = record.agent_args.clone();
+        let record_args = if record.execution.is_some() {
+            Vec::new()
+        } else {
+            record.agent_args.clone()
+        };
         let instance_has_args = record_args.iter().any(|a| !a.trim().is_empty());
         if instance_has_args {
             normalize_agent_args(&effective_command, record_args)

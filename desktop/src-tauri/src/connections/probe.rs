@@ -194,5 +194,5 @@ fn credential_digest(ticket: &str, credentials: (&str, &str)) -> String {
         hash.update((value.len() as u64).to_be_bytes());
         hash.update(value.as_bytes());
     }
-    format!("{:x}", hash.finalize())
+    hex::encode(hash.finalize())
 }

@@ -70,6 +70,10 @@ pub struct HostInfo {
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum InspectRequest {
     Info {},
+    Models {
+        protocol: u32,
+        harness_id: String,
+    },
     ValidateDirectory {
         protocol: u32,
         directory: crate::model::WorkingDirectory,

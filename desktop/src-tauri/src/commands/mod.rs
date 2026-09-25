@@ -1,5 +1,7 @@
+mod connections_models;
+pub use connections_models::*;
 pub(crate) mod connections_execution;
-pub use connections_execution::set_agent_execution;
+pub use connections_execution::*;
 mod connections_directory;
 pub use connections_directory::*;
 mod connections;

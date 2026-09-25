@@ -10,7 +10,8 @@ import {
   type ConnectionProbe,
 } from "@/shared/api/tauriConnections";
 import { invokeTauri } from "@/shared/api/tauri";
-import { ChoiceField, TextField } from "./ConnectionFields";
+import { ConnectionModelField } from "./ConnectionModelField";
+import { ChoiceField } from "./ConnectionFields";
 import { ConnectionCheckResult } from "./ConnectionCheckResult";
 import { connectionStatus, savedCheck } from "./connectionPresentation";
 import { useConnectionProbe } from "./useConnectionProbe";
@@ -225,13 +226,12 @@ export function ConnectionDetail({
               setDefaults({ harness_id: harness_id || null, model: null })
             }
           />
-          <TextField
-            label="Preferred model (optional)"
-            value={defaults.model ?? ""}
-            onChange={(model) =>
-              setDefaults({ ...defaults, model: model || null })
-            }
-            description="Leave empty to use the selected harness’s default model."
+          <ConnectionModelField
+            key={`${connection.id}:${connection.revision}:${defaults.harness_id}`}
+            connection={connection}
+            harnessId={defaults.harness_id}
+            value={defaults.model}
+            onChange={(model) => setDefaults({ ...defaults, model })}
           />
           <Button
             type="button"

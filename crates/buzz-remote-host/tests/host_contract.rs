@@ -148,3 +148,31 @@ fn community_url_canonicalization_rejects_credential_and_scope_ambiguity() {
         assert!(launch::canonical_relay(url).is_err());
     }
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn models_run_on_host_without_launch_state_and_do_not_expose_stderr() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let mut config = config(dir.path());
+    let binary = dir.path().join("fixture acp");
+    std::fs::write(&binary, "#!/bin/sh\n[ \"$1\" = models ] && [ \"$2\" = --json ] || exit 2\nprintf '%s' '{\"agent\":{\"name\":\"fixture\"},\"unstable\":{\"availableModels\":[{\"modelId\":\"server-only\"}]}}'\n").unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+    config.acp_binary = binary.clone();
+    let models = buzz_remote_host::models::discover(&config, "fixture")
+        .await
+        .unwrap();
+    assert_eq!(
+        models["unstable"]["availableModels"][0]["modelId"],
+        "server-only"
+    );
+    assert!(!config.state_directory.exists());
+    assert!(buzz_remote_host::models::discover(&config, "missing")
+        .await
+        .is_err());
+    std::fs::write(&binary, "#!/bin/sh\necho fixture-secret >&2\nexit 1\n").unwrap();
+    let error = buzz_remote_host::models::discover(&config, "fixture")
+        .await
+        .unwrap_err();
+    assert!(!error.contains("fixture-secret"));
+}

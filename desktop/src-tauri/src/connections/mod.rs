@@ -50,6 +50,9 @@ pub(crate) fn load(app: &AppHandle) -> Result<Store, String> {
 
 pub(crate) fn persist(app: &AppHandle, store: &Store) -> Result<(), String> {
     let data = serde_json::to_vec_pretty(store).map_err(|e| e.to_string())?;
+    if data.len() > 1_048_576 {
+        return Err("Connection store exceeds its limit".into());
+    }
     crate::managed_agents::storage::atomic_write_json_restricted(&path(app)?, &data)
 }
 

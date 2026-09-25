@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import {
@@ -11,6 +11,7 @@ import { Button } from "@/shared/ui/button";
 import { ChoiceField, PathField, TextField } from "./ConnectionFields";
 import { ConnectionEditor } from "./ConnectionEditor";
 import { ConnectionCheckResult } from "./ConnectionCheckResult";
+import { ConnectionModelField } from "./ConnectionModelField";
 import { useConnectionProbe } from "./useConnectionProbe";
 
 export function ExecutionFields({
@@ -42,8 +43,8 @@ export function ExecutionFields({
       );
     onChange({
       connection_id: next.id,
-      harness_id: next.defaults.harness_id,
-      model: next.defaults.model,
+      harness_id: value?.harness_id ?? next.defaults.harness_id,
+      model: value?.model ?? next.defaults.model,
       directory: { mode: "automatic" },
     });
   }
@@ -132,7 +133,7 @@ export function ExecutionFields({
       )}
       {value && connection && (
         <ConnectionExecutionFields
-          key={`${connection.id}:${connection.revision}`}
+          key={`${identity.data?.pubkey}:${connection.id}:${connection.revision}`}
           value={value}
           connection={connection}
           onChange={onChange}
@@ -156,6 +157,18 @@ function ConnectionExecutionFields({
   const [directoryResult, setDirectoryResult] = useState<string | null>(null);
   const [directoryPending, setDirectoryPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const directoryGeneration = useRef(0);
+  const directorySelection = useRef(value.directory);
+  useEffect(() => {
+    directorySelection.current = value.directory;
+    directoryGeneration.current++;
+    setDirectoryResult(null);
+    setError(null);
+    setDirectoryPending(false);
+    return () => {
+      directoryGeneration.current++;
+    };
+  }, [value.directory]);
   // Discovery is read-only; each mounted connection owns its result and cancellation.
   const check = probe.check;
   useEffect(() => {
@@ -167,6 +180,8 @@ function ConnectionExecutionFields({
   }, [check, connection]);
   const harnesses = probe.result?.harnesses;
   async function checkDirectory() {
+    const generation = ++directoryGeneration.current;
+    const selection = value.directory;
     setError(null);
     setDirectoryResult(null);
     setDirectoryPending(true);
@@ -176,11 +191,23 @@ function ConnectionExecutionFields({
         value.directory,
         { password, passphrase, approved_host_prompts: [] },
       );
-      setDirectoryResult(result.path);
+      if (
+        generation === directoryGeneration.current &&
+        selection === directorySelection.current
+      )
+        setDirectoryResult(result.path);
     } catch (error) {
-      setError(String(error));
+      if (
+        generation === directoryGeneration.current &&
+        selection === directorySelection.current
+      )
+        setError(String(error));
     } finally {
-      setDirectoryPending(false);
+      if (
+        generation === directoryGeneration.current &&
+        selection === directorySelection.current
+      )
+        setDirectoryPending(false);
     }
   }
   return (
@@ -262,11 +289,13 @@ function ConnectionExecutionFields({
           onChange({ ...value, harness_id, model: null })
         }
       />
-      <TextField
-        label="Model (optional)"
-        value={value.model ?? ""}
-        onChange={(model) => onChange({ ...value, model: model || null })}
-        description="Leave empty to use this harness’s default model."
+      <ConnectionModelField
+        key={value.harness_id ?? "none"}
+        connection={connection}
+        harnessId={value.harness_id}
+        value={value.model}
+        input={{ password, passphrase, approved_host_prompts: [] }}
+        onChange={(model) => onChange({ ...value, model })}
       />
       <div className="space-y-2">
         <ChoiceField

@@ -2,5 +2,6 @@
 #![forbid(unsafe_code)]
 pub mod config;
 pub mod launch;
+pub mod models;
 #[cfg(unix)]
 pub mod supervisor;

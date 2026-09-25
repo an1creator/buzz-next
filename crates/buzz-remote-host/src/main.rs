@@ -67,6 +67,15 @@ async fn respond() -> Result<serde_json::Value, String> {
         InspectRequest::Info {} => {
             serde_json::to_value(config.info()?).map_err(|_| "Cannot encode host info".into())
         }
+        InspectRequest::Models {
+            protocol,
+            harness_id,
+        } => {
+            if protocol != HOST_PROTOCOL {
+                return Err("Host protocol is incompatible".into());
+            }
+            buzz_remote_host::models::discover(&config, &harness_id).await
+        }
         InspectRequest::ValidateDirectory {
             protocol,
             directory,

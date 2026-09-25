@@ -13,7 +13,7 @@ import { AgentRunLocationProvider } from "./AgentRunLocationContext";
 import type { BackendIntent } from "../lib/instanceInputForDefinition";
 import type { AgentCreateIntent } from "./agentCreateIntent";
 import type { EditAgentFocusTarget } from "@/features/agents/openEditAgentEvent";
-import { AgentInstanceEditDialog } from "./AgentInstanceEditDialog";
+import { AgentExecutionDialog } from "@/features/connections/AgentExecutionDialog";
 import { createPersonaDialogState } from "./personaDialogState";
 import {
   AgentDefinitionDialog,
@@ -95,13 +95,12 @@ export function AgentDialog(props: AgentDialogProps) {
       <AgentRunLocationProvider
         runLocation={runLocationForBackend(props.agent.backend)}
       >
-        <AgentInstanceEditDialog
+        <AgentExecutionDialog
           agent={props.agent}
           onEditLinkedPersona={props.onEditLinkedPersona}
           onOpenChange={props.onOpenChange}
           onUpdated={props.onUpdated}
           open={props.open}
-          initialFocus={props.initialFocus}
         />
       </AgentRunLocationProvider>
     );
