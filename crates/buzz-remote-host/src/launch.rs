@@ -138,6 +138,7 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
                 | "BUZZ_ACP_RESPOND_TO"
                 | "BUZZ_ACP_RESPOND_TO_ALLOWLIST"
                 | "BUZZ_ACP_EXIT_AFTER_INACTIVITY"
+                | "BUZZ_CLI_BINARY"
         ) && !key.starts_with("BUZZ_ACP_CHANNEL_WORKSPACE")
     });
     let mode = request.agent.respond_to.as_deref().unwrap_or("owner-only");
@@ -186,6 +187,10 @@ pub fn snapshot(config: &Config, request: &Deploy) -> Result<Snapshot, String> {
         .cloned()
         .unwrap_or_else(|| "/usr/local/bin:/usr/bin:/bin".into());
     environment.insert("PATH".into(), format!("{}:{path}", cli_directory.display()));
+    environment.insert(
+        "BUZZ_CLI_BINARY".into(),
+        config.cli_binary.to_string_lossy().into_owned(),
+    );
     if let Some(tag) = &request.agent.auth_tag {
         environment.insert("BUZZ_AUTH_TAG".into(), tag.clone());
     }

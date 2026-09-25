@@ -5,7 +5,7 @@ use crate::{
     resolve_agent_owner, PromptContext,
 };
 use anyhow::Result;
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, path::Path, time::Duration};
 use uuid::Uuid;
 
 pub(crate) enum SessionMode {
@@ -101,10 +101,15 @@ fn make_prompt_context(
             let base = base_prompt_content
                 .map(String::as_str)
                 .unwrap_or(include_str!("base_prompt.md"));
+            let base = with_cli_location(
+                base,
+                std::env::var("BUZZ_CLI_BINARY").ok().as_deref(),
+                std::env::var_os("BUZZ_CODEX_SOCKET").is_some(),
+            );
             Some(if matches!(mode, SessionMode::Task) {
                 format!("{base}\n\n{}", include_str!("session_model_task.md"))
             } else {
-                config.session_policy.append_session_model(base)
+                config.session_policy.append_session_model(&base)
             })
         },
         heartbeat_prompt: config.heartbeat_prompt.clone(),
@@ -122,4 +127,49 @@ fn make_prompt_context(
         harness_name: crate::config::normalize_agent_command_identity(&config.agent_command),
         relay_url: config.relay_url.clone(),
     })
+}
+
+fn with_cli_location(base: &str, cli_binary: Option<&str>, shared_codex: bool) -> String {
+    let Some(path) =
+        cli_binary.filter(|path| Path::new(path).is_absolute() && !path.contains(['\n', '\r']))
+    else {
+        return base.to_owned();
+    };
+    let quoted = format!("'{}'", path.replace('\'', "'\\''"));
+    let mut prompt = format!(
+        "{base}\n\nOn this connection, the Buzz CLI executable is {quoted}. \
+         Use this absolute executable for every Buzz CLI command, including in \
+         login shells that reset PATH. The examples above use `buzz` as shorthand."
+    );
+    if shared_codex {
+        prompt.push_str(
+            "\nFor Buzz CLI commands, use the Buzz developer MCP shell tool. It has this \
+             agent's signing identity. The shared Codex App Server's built-in shell \
+             does not have that identity and cannot send replies, even when it can \
+             find the `buzz` executable.",
+        );
+    }
+    prompt
+}
+
+#[cfg(test)]
+mod cli_location_tests {
+    use super::with_cli_location;
+
+    #[test]
+    fn remote_cli_location_survives_login_shell_and_ignores_invalid_paths() {
+        let prompt = with_cli_location("base", Some("/opt/buzz next/buzz"), true);
+        assert!(prompt.contains("'/opt/buzz next/buzz'"));
+        assert!(prompt.contains("login shells that reset PATH"));
+        assert!(prompt.contains("Buzz developer MCP shell tool"));
+        assert_eq!(with_cli_location("base", None, false), "base");
+        assert_eq!(
+            with_cli_location("base", Some("relative/buzz"), false),
+            "base"
+        );
+        assert_eq!(
+            with_cli_location("base", Some("/tmp/buzz\ninjected"), false),
+            "base"
+        );
+    }
 }

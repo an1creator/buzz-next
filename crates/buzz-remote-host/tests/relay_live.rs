@@ -126,7 +126,7 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
         &format!("created_at<{expires}"),
     )
     .unwrap();
-    let request = json!({"op":"deploy", "protocol":HOST_PROTOCOL, "request_id":uuid::Uuid::new_v4().to_string(), "server_id":config.server_id, "harness_id":"codex", "directory":{"mode":"explicit","path":cwd}, "agent":{"relay_url":relay,"private_key_nsec":agent.secret_key().to_bech32().unwrap(),"pubkey":agent_hex,"auth_tag":auth,"respond_to":"owner-only","launch":{"owner_pubkey":scope.owner_pubkey,"env":{"RUST_LOG":"buzz_acp=debug","BUZZ_ACP_MODEL":"gpt-5.4","BUZZ_ACP_SYSTEM_PROMPT":"This is an isolated integration test. Answer only the assigned channel. Use the buzz-dev-mcp shell tool to run the Buzz CLI command supplied by the task. A final text answer is not a delivered message. Do not change files or inspect credentials.","BUZZ_ACP_MAX_TURN_DURATION":"180","BUZZ_ACP_IDLE_TIMEOUT":"60"}}}});
+    let request = json!({"op":"deploy", "protocol":HOST_PROTOCOL, "request_id":uuid::Uuid::new_v4().to_string(), "server_id":config.server_id, "harness_id":"codex", "directory":{"mode":"explicit","path":cwd}, "agent":{"relay_url":relay,"private_key_nsec":agent.secret_key().to_bech32().unwrap(),"pubkey":agent_hex,"auth_tag":auth,"respond_to":"owner-only","launch":{"owner_pubkey":scope.owner_pubkey,"env":{"RUST_LOG":"buzz_acp=debug","BUZZ_ACP_MODEL":"gpt-5.4","BUZZ_ACP_SYSTEM_PROMPT":"This is an isolated integration test. Answer only the assigned channel. Send an actual Buzz reply. Do not change files or inspect credentials.","BUZZ_ACP_MAX_TURN_DURATION":"180","BUZZ_ACP_IDLE_TIMEOUT":"60"}}}});
     println!("Launching disposable agent");
     let receipt = host(&config_path, request.clone()).await;
     println!("Launcher exited");
@@ -138,12 +138,13 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
     let mut received = Vec::new();
     for turn in 1..=2 {
         let marker = format!("CONNECTIONS_ACCEPTANCE_{}_{}", channel, turn);
+        std::fs::write(cwd.join("marker.txt"), &marker).unwrap();
         publish(
             &mut connection,
             &owner,
             build_message(
                 channel,
-                &format!("Use the buzz-dev-mcp shell tool to execute: buzz messages send --channel {channel} --content {marker} . Do not use another shell tool; the Buzz MCP shell holds this test agent identity. Confirm the command succeeds."),
+                "What is in marker.txt in your current working directory? Reply here with only its exact contents.",
                 None,
                 &[&agent_hex],
                 false,

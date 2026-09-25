@@ -47,12 +47,16 @@ export function ChoiceField({
   value,
   onChange,
   options,
+  openRequest,
+  searchable = false,
   disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string; disabled?: boolean }[];
+  openRequest?: number;
+  searchable?: boolean;
   disabled?: boolean;
 }) {
   const id = useId();
@@ -65,6 +69,8 @@ export function ChoiceField({
         id={id}
         value={value}
         options={options}
+        openRequest={openRequest}
+        searchable={searchable}
         onValueChange={onChange}
         disabled={disabled}
         selectedLabel={

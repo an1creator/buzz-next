@@ -110,12 +110,18 @@ fn snapshot_pins_identity_scope_and_paths_and_rejects_overrides() {
         .launch
         .env
         .insert("BUZZ_ACP_NO_PRESENCE".into(), "1".into());
+    request
+        .agent
+        .launch
+        .env
+        .insert("BUZZ_CLI_BINARY".into(), "/untrusted/cli".into());
     let snapshot = launch::snapshot(&config, &request).unwrap();
     assert_eq!(
         snapshot.environment["BUZZ_PRIVATE_KEY"],
         request.agent.private_key_nsec
     );
     assert_eq!(snapshot.environment["BUZZ_ACP_AGENT_COMMAND"], "/bin/true");
+    assert_eq!(snapshot.environment["BUZZ_CLI_BINARY"], "/bin/true");
     assert!(!snapshot.environment.contains_key("BUZZ_ACP_NO_PRESENCE"));
     assert_eq!(snapshot.receipt.scope.relay_url, "wss://community.example");
     assert!(!serde_json::to_string(&snapshot.receipt)

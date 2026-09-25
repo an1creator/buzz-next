@@ -27,6 +27,7 @@ export function ConnectionModelField({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [custom, setCustom] = useState(false);
+  const [openRequest, setOpenRequest] = useState(0);
   const operation = useRef<string | null>(null);
   useEffect(
     () => () => {
@@ -52,7 +53,10 @@ export function ConnectionModelField({
         input ?? { password: "", passphrase: "", approved_host_prompts: [] },
         id,
       );
-      if (operation.current === id) setCatalog(result);
+      if (operation.current === id) {
+        setCatalog(result);
+        if (result.models.length > 0) setOpenRequest((request) => request + 1);
+      }
     } catch (error) {
       if (operation.current === id) setError(String(error));
     } finally {
@@ -95,6 +99,8 @@ export function ConnectionModelField({
             : []),
         ]}
         onChange={(model) => onChange(model || null)}
+        openRequest={openRequest}
+        searchable
       />
       <div className="flex flex-wrap gap-2">
         <Button
@@ -121,6 +127,12 @@ export function ConnectionModelField({
           Custom model
         </Button>
       </div>
+      {catalog && catalog.models.length > 0 && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {catalog.models.length} models loaded. Choose one from Model, or keep
+          the harness default.
+        </p>
+      )}
       {custom && (
         <TextField
           label="Model ID"
