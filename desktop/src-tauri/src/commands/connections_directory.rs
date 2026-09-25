@@ -11,6 +11,7 @@ use tauri::{AppHandle, State};
 pub async fn validate_execution_directory(
     connection_id: String,
     expected_revision: u64,
+    operation_id: String,
     directory: WorkingDirectory,
     input: connections::probe::ProbeInput,
     app: AppHandle,
@@ -53,17 +54,25 @@ pub async fn validate_execution_directory(
     answers
         .trusted_prompts
         .extend(input.approved_host_prompts.iter().cloned());
-    let result = match &connection.target {
-        Target::Local => DirectoryInfo {
-            path: crate::connections::directory::local_directory(&directory)?,
-        },
-        Target::Ssh { endpoint } => {
-            let value = buzz_connections::remote::call(endpoint, &connections::probe::helper()?, answers, &serde_json::json!({"op":"validate_directory", "protocol":HOST_PROTOCOL, "directory":directory})).await.map_err(|failure| match failure.outcome {
+    let (_operation, mut cancellation) = connections::operations::begin(&owner, &operation_id)?;
+    let query = async {
+        let result = match &connection.target {
+            Target::Local => DirectoryInfo {
+                path: crate::connections::directory::local_directory(&directory)?,
+            },
+            Target::Ssh { endpoint } => {
+                let value = buzz_connections::remote::call(endpoint, &connections::probe::helper()?, answers, &serde_json::json!({"op":"validate_directory", "protocol":HOST_PROTOCOL, "directory":directory})).await.map_err(|failure| match failure.outcome {
                 buzz_connections::model::CheckOutcome::Failed { message } => message,
                 _ => "Check the SSH connection before validating its directory".into(),
             })?;
-            serde_json::from_value(value).map_err(|_| "Invalid directory response")?
-        }
+                serde_json::from_value(value).map_err(|_| "Invalid directory response")?
+            }
+        };
+        Ok::<DirectoryInfo, String>(result)
+    };
+    let result = tokio::select! {
+        result = query => result?,
+        _ = cancellation.changed() => return Err("Directory check cancelled".into()),
     };
     if super::agents::workspace_owner_hex(&state)? != owner {
         return Err("Identity changed during validation".into());

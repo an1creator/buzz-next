@@ -126,10 +126,12 @@ export const validateExecutionDirectory = (
   connection: ExecutionConnection,
   directory: WorkingDirectory,
   input: ConnectionProbeInput,
+  operationId: string,
 ) =>
   invokeTauri<{ path: string }>("validate_execution_directory", {
     connectionId: connection.id,
     expectedRevision: connection.revision,
+    operationId,
     directory,
     input,
   });

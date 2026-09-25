@@ -1,5 +1,8 @@
 name: Buzz Next Windows
 on:
+  push:
+    branches: [feature/ssh-connections]
+    paths: ['.github/workflows/buzz-next-windows.yml']
   workflow_dispatch:
     inputs:
       version:
@@ -20,7 +23,7 @@ jobs:
     env:
       BUZZ_NEXT_SOURCE_COMMIT: ${{ github.sha }}
       TARGET: x86_64-pc-windows-msvc
-      VERSION: ${{ inputs.version }}
+      VERSION: ${{ inputs.version || '0.5.25-next.1' }}
       CARGO_BUILD_JOBS: 2
       BUZZ_UPDATER_ENDPOINT: https://buzz.n1creator.com/updates/windows/latest.json
       BUZZ_UPDATER_PUBLIC_KEY: ${{ secrets.BUZZ_UPDATER_PUBLIC_KEY }}

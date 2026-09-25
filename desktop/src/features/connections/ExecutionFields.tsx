@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useIdentityQuery } from "@/shared/api/hooks";
 import {
   listExecutionConnections,
   validateExecutionDirectory,
+  cancelConnectionCheck,
   type ExecutionConnection,
   type AgentExecution,
 } from "@/shared/api/tauriConnections";
@@ -158,17 +159,27 @@ function ConnectionExecutionFields({
   const [directoryPending, setDirectoryPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const directoryGeneration = useRef(0);
+  const directoryOperation = useRef<string | null>(null);
+  const cancelDirectory = useCallback(() => {
+    directoryGeneration.current++;
+    const id = directoryOperation.current;
+    directoryOperation.current = null;
+    if (id)
+      void cancelConnectionCheck(id).catch(() => {
+        // Native checks remain bounded if cancellation IPC is unavailable.
+      });
+  }, []);
   const directorySelection = useRef(value.directory);
   useEffect(() => {
     directorySelection.current = value.directory;
-    directoryGeneration.current++;
+    cancelDirectory();
     setDirectoryResult(null);
     setError(null);
     setDirectoryPending(false);
     return () => {
-      directoryGeneration.current++;
+      cancelDirectory();
     };
-  }, [value.directory]);
+  }, [value.directory, cancelDirectory]);
   // Discovery is read-only; each mounted connection owns its result and cancellation.
   const check = probe.check;
   useEffect(() => {
@@ -180,7 +191,10 @@ function ConnectionExecutionFields({
   }, [check, connection]);
   const harnesses = probe.result?.harnesses;
   async function checkDirectory() {
+    cancelDirectory();
     const generation = ++directoryGeneration.current;
+    const operationId = crypto.randomUUID();
+    directoryOperation.current = operationId;
     const selection = value.directory;
     setError(null);
     setDirectoryResult(null);
@@ -190,6 +204,7 @@ function ConnectionExecutionFields({
         connection,
         value.directory,
         { password, passphrase, approved_host_prompts: [] },
+        operationId,
       );
       if (
         generation === directoryGeneration.current &&
@@ -206,8 +221,10 @@ function ConnectionExecutionFields({
       if (
         generation === directoryGeneration.current &&
         selection === directorySelection.current
-      )
+      ) {
+        directoryOperation.current = null;
         setDirectoryPending(false);
+      }
     }
   }
   return (
@@ -353,6 +370,18 @@ function ConnectionExecutionFields({
         >
           {directoryPending ? "Checking folder…" : "Check folder"}
         </Button>
+        {directoryPending && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              cancelDirectory();
+              setDirectoryPending(false);
+            }}
+          >
+            Cancel folder check
+          </Button>
+        )}
         {directoryResult && (
           <p role="status" className="break-all text-sm">
             Verified: {directoryResult}
