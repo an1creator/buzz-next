@@ -55,13 +55,69 @@ pub fn get_agent_execution_status(
             result["launch_unconfirmed"] = serde_json::json!(attempt.receipt.is_none());
             if let Some(receipt) = &attempt.receipt {
                 result["applied"] = serde_json::json!({"harness_id":receipt.harness_id,"harness_label":receipt.harness_label,"model":receipt.model,"directory":receipt.directory});
-                result["pending"] = serde_json::json!(
-                    &attempt.execution != desired
-                        || desired.harness_id.as_ref() != Some(&receipt.harness_id)
-                        || desired.model != receipt.model
-                );
+                result["pending"] = serde_json::json!(pending_execution(
+                    desired,
+                    &attempt.execution,
+                    &receipt.harness_id,
+                    receipt.model.as_deref()
+                ));
             }
         }
     }
     Ok(result)
+}
+
+fn pending_execution(
+    desired: &buzz_connections::model::Execution,
+    captured: &buzz_connections::model::Execution,
+    harness: &str,
+    model: Option<&str>,
+) -> bool {
+    desired != captured
+        || desired.harness_id.as_deref() != Some(harness)
+        || desired
+            .model
+            .as_deref()
+            .is_some_and(|selected| Some(selected) != model)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use buzz_connections::model::{Execution, WorkingDirectory};
+    #[test]
+    fn resolved_harness_default_is_not_a_pending_user_edit() {
+        let captured = Execution {
+            connection_id: "connection".into(),
+            harness_id: Some("codex".into()),
+            model: None,
+            directory: WorkingDirectory::Automatic,
+        };
+        assert!(!pending_execution(
+            &captured,
+            &captured,
+            "codex",
+            Some("server-default")
+        ));
+        let mut changed = captured.clone();
+        changed.model = Some("chosen-model".into());
+        assert!(pending_execution(
+            &changed,
+            &captured,
+            "codex",
+            Some("server-default")
+        ));
+        assert!(!pending_execution(
+            &changed,
+            &changed,
+            "codex",
+            Some("chosen-model")
+        ));
+        assert!(pending_execution(
+            &changed,
+            &changed,
+            "codex",
+            Some("different")
+        ));
+    }
 }

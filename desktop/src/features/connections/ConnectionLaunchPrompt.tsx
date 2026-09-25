@@ -62,7 +62,7 @@ export function ConnectionLaunchPrompt() {
           <DialogTitle>SSH sign-in required</DialogTitle>
           <DialogDescription>
             Enter the password or key passphrase for this connection. It is used
-            for this launch only.
+            only for this operation and is not saved.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -93,7 +93,7 @@ export function ConnectionLaunchPrompt() {
               Cancel
             </Button>
             <Button type="submit" disabled={!password && !passphrase}>
-              Continue launch
+              Continue
             </Button>
           </DialogFooter>
         </form>
