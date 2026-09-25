@@ -6,6 +6,75 @@ use std::collections::BTreeMap;
 
 use tauri::AppHandle;
 
+/// Connection catalogs are authoritative on their own machine; do not resolve server tools locally.
+pub(crate) fn build_connection_deploy_payload(
+    app: &AppHandle,
+    state: &AppState,
+    record: &ManagedAgentRecord,
+    catalog: &buzz_connections::catalog::AcpRuntimeCatalogEntry,
+) -> Result<serde_json::Value, String> {
+    if let Some(error) = crate::managed_agents::spawn_key_refusal(record) {
+        return Err(error);
+    }
+    let execution = record
+        .execution
+        .as_ref()
+        .ok_or("Choose a connection before starting")?;
+    let personas = load_personas(app)?;
+    let teams = crate::managed_agents::load_teams(app)?;
+    let effective = crate::managed_agents::effective_config::resolve_effective_config(
+        record,
+        &personas,
+        &Default::default(),
+    )
+    .require_resolved()?;
+    ensure_remote_provider_supported(effective.provider.value.as_deref())?;
+    let persona_env =
+        crate::managed_agents::live_persona_env(&personas, record.persona_id.as_deref());
+    let env = crate::managed_agents::merged_user_env(&persona_env, &record.env_vars);
+    let descriptor = crate::managed_agents::readiness::EffectiveHarnessDescriptor {
+        command: catalog
+            .command
+            .clone()
+            .ok_or("Server harness has no command")?,
+        args: catalog.default_args.clone(),
+        env: env.clone(),
+    };
+    let owner = super::workspace_owner_hex(state)?;
+    let mut launch = build_launch_block_for_policy(
+        record,
+        &descriptor,
+        &teams,
+        effective.system_prompt.value.as_deref(),
+        None,
+        &owner,
+        crate::managed_agents::effective_acp_session_policy(record, &personas),
+    );
+    if let Some(model) = &execution.model {
+        let key = catalog.model_env_var.as_deref().unwrap_or("BUZZ_ACP_MODEL");
+        launch["policy_env"][key] = serde_json::json!(model);
+        if let Some(env) = launch["env"].as_object_mut() {
+            env.remove(key);
+        }
+    }
+    Ok(deploy_payload_json(
+        record,
+        crate::relay::effective_agent_relay_url(
+            &record.relay_url,
+            &relay_ws_url_with_override(state),
+        ),
+        DeployProjections {
+            effective_model: execution.model.clone(),
+            effective_provider: effective.provider.value,
+            effective_prompt: effective.system_prompt.value,
+            effective_parallelism: record.parallelism,
+            owner_only_access: crate::managed_agents::owner_only_access_build(),
+        },
+        env,
+        launch,
+    ))
+}
+
 #[cfg(test)]
 use crate::managed_agents::AgentDefinition;
 use crate::{
@@ -805,73 +874,4 @@ mod tests {
             "legacy top-level parallelism must match launch.policy_env — both must be {cap}"
         );
     }
-}
-
-/// Connection catalogs are authoritative on their own machine; do not resolve server tools locally.
-pub(crate) fn build_connection_deploy_payload(
-    app: &AppHandle,
-    state: &AppState,
-    record: &ManagedAgentRecord,
-    catalog: &buzz_connections::catalog::AcpRuntimeCatalogEntry,
-) -> Result<serde_json::Value, String> {
-    if let Some(error) = crate::managed_agents::spawn_key_refusal(record) {
-        return Err(error);
-    }
-    let execution = record
-        .execution
-        .as_ref()
-        .ok_or("Choose a connection before starting")?;
-    let personas = load_personas(app)?;
-    let teams = crate::managed_agents::load_teams(app)?;
-    let effective = crate::managed_agents::effective_config::resolve_effective_config(
-        record,
-        &personas,
-        &Default::default(),
-    )
-    .require_resolved()?;
-    ensure_remote_provider_supported(effective.provider.value.as_deref())?;
-    let persona_env =
-        crate::managed_agents::live_persona_env(&personas, record.persona_id.as_deref());
-    let env = crate::managed_agents::merged_user_env(&persona_env, &record.env_vars);
-    let descriptor = crate::managed_agents::readiness::EffectiveHarnessDescriptor {
-        command: catalog
-            .command
-            .clone()
-            .ok_or("Server harness has no command")?,
-        args: catalog.default_args.clone(),
-        env: env.clone(),
-    };
-    let owner = super::workspace_owner_hex(state)?;
-    let mut launch = build_launch_block_for_policy(
-        record,
-        &descriptor,
-        &teams,
-        effective.system_prompt.value.as_deref(),
-        None,
-        &owner,
-        crate::managed_agents::effective_acp_session_policy(record, &personas),
-    );
-    if let Some(model) = &execution.model {
-        let key = catalog.model_env_var.as_deref().unwrap_or("BUZZ_ACP_MODEL");
-        launch["policy_env"][key] = serde_json::json!(model);
-        if let Some(env) = launch["env"].as_object_mut() {
-            env.remove(key);
-        }
-    }
-    Ok(deploy_payload_json(
-        record,
-        crate::relay::effective_agent_relay_url(
-            &record.relay_url,
-            &relay_ws_url_with_override(state),
-        ),
-        DeployProjections {
-            effective_model: execution.model.clone(),
-            effective_provider: effective.provider.value,
-            effective_prompt: effective.system_prompt.value,
-            effective_parallelism: record.parallelism,
-            owner_only_access: crate::managed_agents::owner_only_access_build(),
-        },
-        env,
-        launch,
-    ))
 }

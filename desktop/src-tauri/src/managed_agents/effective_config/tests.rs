@@ -900,9 +900,11 @@ fn execution_model_does_not_inherit_a_different_machines_defaults() {
         None,
         "Keep these instructions",
     );
-    let mut global = GlobalAgentConfig::default();
-    global.model = Some("desktop-only-model".into());
-    global.provider = Some("desktop-only-provider".into());
+    let global = GlobalAgentConfig {
+        model: Some("desktop-only-model".into()),
+        provider: Some("desktop-only-provider".into()),
+        ..Default::default()
+    };
     let effective = resolve_effective_config(&record, &[definition], &global)
         .require_resolved()
         .unwrap();
