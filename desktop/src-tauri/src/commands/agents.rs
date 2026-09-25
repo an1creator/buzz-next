@@ -599,6 +599,7 @@ pub async fn create_managed_agent(
             linked_persona.as_ref(),
         )?;
         let record = ManagedAgentRecord {
+            execution: None,
             pubkey: pubkey.clone(),
             name: name.clone(),
             description: None,

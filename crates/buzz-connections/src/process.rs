@@ -25,7 +25,11 @@ pub async fn run(
     command.wrap(ProcessSession);
     #[cfg(windows)]
     {
-        command.wrap(CreationFlags(0x08000000)).wrap(JobObject);
+        command
+            .wrap(CreationFlags(
+                windows::Win32::System::Threading::CREATE_NO_WINDOW,
+            ))
+            .wrap(JobObject);
     }
     command.wrap(KillOnDrop);
     let mut child = command

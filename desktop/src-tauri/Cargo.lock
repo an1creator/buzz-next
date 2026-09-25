@@ -1096,6 +1096,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "buzz-connections"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "process-wrap 10.0.1",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "tokio",
+ "uuid",
+ "windows 0.62.2",
+ "zeroize",
+]
+
+[[package]]
 name = "buzz-core"
 version = "0.1.0"
 dependencies = [
@@ -1128,6 +1143,7 @@ dependencies = [
  "base64 0.22.1",
  "block2",
  "buzz-agent",
+ "buzz-connections",
  "buzz-core",
  "buzz-media",
  "buzz-persona",
@@ -2387,7 +2403,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccc2776f0c61eca1ca32528f85548abd1a4be8fb53d1b21c013e4f18da1e7090"
 dependencies = [
  "data-encoding",
- "syn 1.0.109",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -7986,6 +8002,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "process-wrap"
+version = "10.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f21b97672d2dc848e7b25701ab4535618b92f4861c13cc3f7f7bed52ad3c8da"
+dependencies = [
+ "futures",
+ "indexmap 2.14.0",
+ "nix 0.31.3",
+ "tokio",
+ "tracing",
+ "windows 0.62.2",
+]
+
+[[package]]
 name = "proptest"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8821,7 +8851,7 @@ dependencies = [
  "chrono",
  "futures",
  "pin-project-lite",
- "process-wrap",
+ "process-wrap 9.1.0",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -8848,7 +8878,7 @@ dependencies = [
  "indexmap 2.14.0",
  "pastey",
  "pin-project-lite",
- "process-wrap",
+ "process-wrap 9.1.0",
  "rand 0.10.2",
  "reqwest 0.13.4",
  "rmcp-macros",
@@ -11114,7 +11144,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

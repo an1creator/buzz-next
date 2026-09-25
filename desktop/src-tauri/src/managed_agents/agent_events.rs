@@ -164,6 +164,7 @@ mod tests {
 
     fn sample_agent() -> ManagedAgentRecord {
         ManagedAgentRecord {
+            execution: None,
             session_policy: Default::default(),
             description: None,
             pubkey: "agentpubkeyhex".to_string(),

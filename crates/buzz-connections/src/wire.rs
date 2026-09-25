@@ -54,3 +54,34 @@ pub enum LaunchState {
     Failed,
     Unconfirmed,
 }
+
+/// Read-only server response. No credentials or harness environment are returned.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HostInfo {
+    pub protocol: u32,
+    pub server_id: String,
+    pub version: String,
+    pub default_directory: String,
+    pub harnesses: Vec<crate::catalog::AcpRuntimeCatalogEntry>,
+}
+
+/// Secret-free operations use the same versioned stdin channel as deploy.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
+pub enum InspectRequest {
+    Info {},
+    ValidateDirectory {
+        protocol: u32,
+        directory: crate::model::WorkingDirectory,
+    },
+    Status {
+        protocol: u32,
+        scope: DeploymentScope,
+    },
+}
+
+/// Resolved directory is computed by the execution machine, never the launcher.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DirectoryInfo {
+    pub path: String,
+}

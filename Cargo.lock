@@ -1156,6 +1156,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+ "windows 0.62.2",
  "zeroize",
 ]
 
@@ -1516,6 +1517,23 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "buzz-remote-host"
+version = "0.1.0"
+dependencies = [
+ "atomic-write-file",
+ "buzz-connections",
+ "fs2",
+ "nostr 0.44.7",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "url",
+ "uuid",
+ "zeroize",
 ]
 
 [[package]]

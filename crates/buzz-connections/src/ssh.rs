@@ -29,6 +29,8 @@ pub fn command(endpoint: &SshEndpoint, askpass: &Path) -> Command {
         "PermitLocalCommand=no",
         "-o",
         "ClearAllForwardings=yes",
+        "-o",
+        "RemoteCommand=none",
     ]);
     match endpoint {
         SshEndpoint::Config { path, alias } => {

@@ -6,6 +6,7 @@ mod build_identity;
 mod builderlab;
 mod channel_head_cache;
 mod commands;
+mod connections;
 mod deep_link;
 mod egress_guard;
 mod event_sync;
@@ -525,6 +526,11 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::test_execution_connection,
+            commands::list_execution_connections,
+            commands::save_execution_connection,
+            commands::delete_execution_connection,
+            commands::pick_connection_file,
             terminal_runtime::terminal_attach,
             terminal_runtime::terminal_detach,
             terminal_runtime::terminal_close,
