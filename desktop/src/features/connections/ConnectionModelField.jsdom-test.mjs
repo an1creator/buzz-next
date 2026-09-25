@@ -54,7 +54,9 @@ test("model discovery is connection-scoped, disambiguates labels and ignores can
     await click("Load models");
     assert.equal(calls[0].args.connectionId, "server");
     assert.equal(
-      container.querySelector('[role="combobox"]').getAttribute("aria-expanded"),
+      container
+        .querySelector('[role="combobox"]')
+        .getAttribute("aria-expanded"),
       "true",
     );
     assert.match(container.textContent, /2 models loaded/);

@@ -149,7 +149,10 @@ export function AgentDropdownSelect({
   const [query, setQuery] = React.useState("");
   const previousOpenRequest = React.useRef(openRequest);
   React.useEffect(() => {
-    if (openRequest !== undefined && openRequest !== previousOpenRequest.current) {
+    if (
+      openRequest !== undefined &&
+      openRequest !== previousOpenRequest.current
+    ) {
       previousOpenRequest.current = openRequest;
       setQuery("");
       setOpen(true);
