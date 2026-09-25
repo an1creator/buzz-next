@@ -89,10 +89,10 @@ impl PromptBridge {
                 } else {
                     ""
                 };
-                let _ = tokio::time::timeout(
-                    Duration::from_secs(2),
-                    stream.write_all(response.as_bytes()),
-                )
+                let _ = tokio::time::timeout(Duration::from_secs(2), async {
+                    stream.write_all(response.as_bytes()).await?;
+                    stream.shutdown().await
+                })
                 .await;
             }
         });

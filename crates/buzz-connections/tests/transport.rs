@@ -9,18 +9,24 @@ use tokio::process::Command;
 
 #[tokio::test]
 async fn askpass_returns_password_without_argv_or_environment_secret() {
-    let mut answers = Answers::default();
-    answers.password.push_str("test-password-only");
-    let bridge = PromptBridge::start(answers).await.unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_buzz-ssh-askpass"));
-    command.arg("user@host's password:");
-    bridge.configure(&mut command);
-    assert!(!format!("{command:?}").contains("test-password-only"));
-    let result = process::run(command, b"", Duration::from_secs(5))
-        .await
-        .unwrap();
-    assert!(result.success);
-    assert_eq!(result.stdout, b"test-password-only\n");
+    for _ in 0..12 {
+        let mut answers = Answers::default();
+        answers.password.push_str("test-password-only");
+        let bridge = PromptBridge::start(answers).await.unwrap();
+        let mut command = Command::new(env!("CARGO_BIN_EXE_buzz-ssh-askpass"));
+        command.arg("user@host's password:");
+        bridge.configure(&mut command);
+        assert!(!format!("{command:?}").contains("test-password-only"));
+        let result = process::run(command, b"", Duration::from_secs(5))
+            .await
+            .unwrap();
+        assert!(
+            result.success,
+            "sanitized helper diagnostic: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert_eq!(result.stdout, b"test-password-only\n");
+    }
 }
 
 #[tokio::test]
