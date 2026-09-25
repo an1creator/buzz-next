@@ -28,6 +28,9 @@ pub async fn call(
         },
         trust_prompt: None,
     };
+    ssh::ensure_client()
+        .await
+        .map_err(|message| failed(&message))?;
     if !helper.is_file() {
         return Err(failed("SSH helper is missing. Reinstall Buzz Next."));
     }

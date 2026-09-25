@@ -33,14 +33,14 @@ fn generate(path: &Path, passphrase: &str) {
 async fn encrypted_key_and_host_trust_through_real_openssh() {
     let dir = tempfile::tempdir().unwrap();
     let host_key = dir.path().join("host");
-    let user_key = dir.path().join("identity");
+    let user_key = dir.path().join("identity space ü ; dollar$");
     generate(&host_key, "");
     generate(&user_key, "fixture-passphrase");
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     drop(listener);
     let config = dir.path().join("sshd_config");
-    std::fs::write(&config, format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nPidFile {}\nAuthorizedKeysFile {}\nStrictModes no\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nLogLevel ERROR\n", host_key.display(), dir.path().join("pid").display(), user_key.with_extension("pub").display())).unwrap();
+    std::fs::write(&config, format!("Port {port}\nListenAddress 127.0.0.1\nHostKey {}\nPidFile {}\nAuthorizedKeysFile \"{}\"\nStrictModes no\nUsePAM no\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nLogLevel ERROR\n", host_key.display(), dir.path().join("pid").display(), user_key.with_extension("pub").display())).unwrap();
     let _server = Server(
         Command::new("/usr/sbin/sshd")
             .args(["-D", "-e", "-f"])
@@ -114,4 +114,24 @@ async fn encrypted_key_and_host_trust_through_real_openssh() {
         String::from_utf8_lossy(&second.stderr)
     );
     assert_eq!(second.stdout, b"BUZZ_SSH_OK");
+    let mut wrong = Answers::default();
+    wrong.passphrase.push_str("incorrect-passphrase");
+    let wrong = PromptBridge::start(wrong).await.unwrap();
+    assert!(
+        !process::run(run(&wrong), b"", Duration::from_secs(10))
+            .await
+            .unwrap()
+            .success
+    );
+    let alternate_host = dir.path().join("alternate-host");
+    generate(&alternate_host, "");
+    let wrong_host = std::fs::read_to_string(alternate_host.with_extension("pub")).unwrap();
+    std::fs::write(&known_hosts, format!("[127.0.0.1]:{port} {wrong_host}")).unwrap();
+    let changed = process::run(run(&bridge), b"", Duration::from_secs(10))
+        .await
+        .unwrap();
+    assert!(!changed.success);
+    assert!(
+        String::from_utf8_lossy(&changed.stderr).contains("REMOTE HOST IDENTIFICATION HAS CHANGED")
+    );
 }

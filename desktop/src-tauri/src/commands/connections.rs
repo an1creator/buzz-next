@@ -270,6 +270,7 @@ pub async fn resolve_ssh_config_host(
         check: None,
     };
     connection.validate()?;
+    buzz_connections::ssh::ensure_client().await?;
     let output = buzz_connections::process::run(
         buzz_connections::ssh::effective_config(&path, &alias),
         b"",

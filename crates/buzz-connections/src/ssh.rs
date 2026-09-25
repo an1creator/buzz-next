@@ -79,3 +79,29 @@ pub fn effective_config(path: &str, alias: &str) -> Command {
     command.args(["-G", "-F", path, "--", alias]);
     command
 }
+
+/// Check the local client separately so missing OpenSSH has an actionable remedy.
+pub async fn ensure_client() -> Result<(), String> {
+    let mut command = Command::new("ssh");
+    command.arg("-V");
+    check_client(command).await
+}
+
+async fn check_client(command: Command) -> Result<(), String> {
+    match crate::process::run(command, b"", std::time::Duration::from_secs(5)).await {
+        Ok(output) if output.success => Ok(()),
+        _ => Err("Cannot run OpenSSH on this device. Install or repair OpenSSH Client (Windows) or openssh-client (Linux), then reopen Buzz.".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn unavailable_client_has_install_guidance() {
+        let result =
+            super::check_client(tokio::process::Command::new("buzz-nonexistent-ssh-fixture")).await;
+        assert!(result
+            .unwrap_err()
+            .contains("Install or repair OpenSSH Client"));
+    }
+}
