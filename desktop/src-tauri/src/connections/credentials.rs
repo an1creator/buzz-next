@@ -165,7 +165,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(store.pending_secret_cleanup, [reference.clone()]);
+        assert_eq!(store.pending_secret_cleanup, [reference]);
         assert_eq!(writes, 0);
 
         drain_cleanup(
