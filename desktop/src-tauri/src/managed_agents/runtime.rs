@@ -493,6 +493,10 @@ pub fn spawn_agent_child(
     if let Some(error) = spawn_key_refusal(record) {
         return Err(error);
     }
+    let execution_directory = Some(crate::connections::directory::local_execution_directory(
+        app,
+        record.execution.as_ref(),
+    )?);
     let runtime_key = ManagedAgentRuntimeKey::new(record.pubkey.clone(), relay_url)?;
     // Resolve the effective harness (agent command) from the linked persona, so
     // persona harness edits propagate on the next spawn; an explicit per-agent
@@ -599,12 +603,6 @@ pub fn spawn_agent_child(
     );
 
     let mut command = std::process::Command::new(&resolved_acp_command);
-    let execution_directory = match &record.execution {
-        Some(execution) => Some(crate::connections::directory::local_directory(
-            &execution.directory,
-        )?),
-        None => super::default_agent_workdir().map(|path| path.to_string_lossy().into_owned()),
-    };
     if let Some(directory) = &execution_directory {
         command.current_dir(directory);
     }
