@@ -6,6 +6,7 @@ use buzz_connections::{
 };
 use buzz_sdk::{build_add_member, build_archive, build_create_channel, build_message, Visibility};
 use buzz_ws_client::{NostrWsConnection, RelayMessage};
+use futures_util::FutureExt;
 use nostr::{Keys, ToBech32};
 use serde_json::{json, Value};
 use std::{path::Path, time::Duration};
@@ -47,6 +48,7 @@ async fn publish(connection: &mut NostrWsConnection, keys: &Keys, builder: nostr
         "Relay rejected fixture event: {}",
         reply.message
     );
+    println!("Fixture event accepted: {}", reply.event_id);
 }
 
 #[tokio::test]
@@ -116,6 +118,7 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
         build_add_member(channel, &agent_hex, None).unwrap(),
     )
     .await;
+    let result = std::panic::AssertUnwindSafe(async {
     let expires = nostr::Timestamp::now().as_secs() + 3600;
     let auth = buzz_sdk::nip_oa::compute_auth_tag(
         &owner,
@@ -123,13 +126,13 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
         &format!("created_at<{expires}"),
     )
     .unwrap();
-    let request = json!({"op":"deploy", "protocol":HOST_PROTOCOL, "request_id":uuid::Uuid::new_v4().to_string(), "server_id":config.server_id, "harness_id":"codex", "directory":{"mode":"explicit","path":cwd}, "agent":{"relay_url":relay,"private_key_nsec":agent.secret_key().to_bech32().unwrap(),"pubkey":agent_hex,"auth_tag":auth,"respond_to":"owner-only","launch":{"owner_pubkey":scope.owner_pubkey,"env":{"BUZZ_ACP_MODEL":"gpt-5.4","BUZZ_ACP_SYSTEM_PROMPT":"This is an isolated integration test. Answer only the assigned channel. Use the Buzz MCP message tool to publish the exact requested marker. Do not change files or inspect credentials.","BUZZ_ACP_MAX_TURN_DURATION":"180"}}}});
+    let request = json!({"op":"deploy", "protocol":HOST_PROTOCOL, "request_id":uuid::Uuid::new_v4().to_string(), "server_id":config.server_id, "harness_id":"codex", "directory":{"mode":"explicit","path":cwd}, "agent":{"relay_url":relay,"private_key_nsec":agent.secret_key().to_bech32().unwrap(),"pubkey":agent_hex,"auth_tag":auth,"respond_to":"owner-only","launch":{"owner_pubkey":scope.owner_pubkey,"env":{"RUST_LOG":"buzz_acp=debug","BUZZ_ACP_MODEL":"gpt-5.4","BUZZ_ACP_SYSTEM_PROMPT":"This is an isolated integration test. Answer only the assigned channel. Use the buzz-dev-mcp shell tool to run the Buzz CLI command supplied by the task. A final text answer is not a delivered message. Do not change files or inspect credentials.","BUZZ_ACP_MAX_TURN_DURATION":"180","BUZZ_ACP_IDLE_TIMEOUT":"60"}}}});
     println!("Launching disposable agent");
     let receipt = host(&config_path, request.clone()).await;
     println!("Launcher exited");
     assert_eq!(receipt["directory"], cwd.to_str().unwrap());
     assert_eq!(receipt["model"], "gpt-5.4");
-    connection.send_raw(&json!(["REQ","acceptance",{"kinds":[9],"authors":[agent_hex],"#h":[channel.to_string()],"since":nostr::Timestamp::now().as_secs()}])).await.unwrap();
+    connection.send_raw(&json!(["REQ","acceptance",{"kinds":[9],"#h":[channel.to_string()],"since":nostr::Timestamp::now().as_secs()}])).await.unwrap();
     // The one-shot host has exited; a second task must still be accepted through relay.
     tokio::time::sleep(Duration::from_secs(8)).await;
     let mut received = Vec::new();
@@ -140,7 +143,7 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
             &owner,
             build_message(
                 channel,
-                &format!("Use Buzz MCP to send a channel message containing exactly {marker}."),
+                &format!("Use the buzz-dev-mcp shell tool to execute: buzz messages send --channel {channel} --content {marker} . Do not use another shell tool; the Buzz MCP shell holds this test agent identity. Confirm the command succeeds."),
                 None,
                 &[&agent_hex],
                 false,
@@ -159,7 +162,8 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
             if let Ok(RelayMessage::Event { event, .. }) =
                 connection.next_event(Duration::from_secs(5)).await
             {
-                if event.content.trim() == marker {
+                println!("Received channel event from {}", if event.pubkey == agent.public_key() { "agent" } else { "owner" });
+                if event.pubkey == agent.public_key() && event.content.trim() == marker {
                     received.push(event.id.to_hex());
                     break;
                 }
@@ -189,7 +193,10 @@ async fn relay_task_after_launcher_exit_and_owner_stop() {
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
     assert_eq!(host(&config_path, request).await["state"], "stopped");
+    received
+    }).catch_unwind().await;
     publish(&mut connection, &owner, build_archive(channel).unwrap()).await;
+    let received = result.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
     println!(
         "{}",
         json!({"launcher_exited":true,"response_event_ids":received,"owner_stop":true,"stopped_retry":true,"channel_archived":true})
