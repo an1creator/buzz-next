@@ -68,3 +68,50 @@ pub(crate) fn get(app: &AppHandle, id: &str) -> Result<Connection, String> {
 pub(crate) fn credential_scope(owner: &str, connection_id: &str) -> String {
     format!("{owner}:{connection_id}")
 }
+
+impl Store {
+    /// A stopped receipt in one community cannot hide an active or uncertain launch elsewhere.
+    pub(crate) fn has_unsettled_launch(&self, pubkey: &str) -> bool {
+        self.launches.values().any(|attempt| {
+            attempt.scope.agent_pubkey == pubkey
+                && attempt.receipt.as_ref().is_none_or(|receipt| {
+                    !matches!(
+                        receipt.state,
+                        buzz_connections::wire::LaunchState::Stopped
+                            | buzz_connections::wire::LaunchState::Failed
+                    )
+                })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn terminal_scope_does_not_hide_another_live_scope() {
+        let mut store = Store::default();
+        let attempt = |relay: &str, state: &str| {
+            serde_json::from_value(serde_json::json!({
+            "scope":{"server_id":"server","owner_pubkey":"owner","relay_url":relay,"agent_pubkey":"agent"},
+            "request_id":"request", "execution":{"connection_id":"connection","harness_id":"codex","model":null,"directory":{"mode":"automatic"}},
+            "receipt":{"request_id":"request","scope":{"server_id":"server","owner_pubkey":"owner","relay_url":relay,"agent_pubkey":"agent"},"generation":"generation","directory":"/tmp","harness_id":"codex","state":state}
+        })).unwrap()
+        };
+        store
+            .launches
+            .insert("stopped".into(), attempt("wss://one.test", "stopped"));
+        assert!(!store.has_unsettled_launch("agent"));
+        store
+            .launches
+            .insert("running".into(), attempt("wss://two.test", "running"));
+        assert!(store.has_unsettled_launch("agent"));
+        assert!(!store.has_unsettled_launch("another-agent"));
+        store.launches.get_mut("running").unwrap().receipt = None;
+        assert!(store.has_unsettled_launch("agent"));
+        store
+            .launches
+            .insert("running".into(), attempt("wss://two.test", "failed"));
+        assert!(!store.has_unsettled_launch("agent"));
+    }
+}

@@ -1161,12 +1161,7 @@ pub async fn delete_managed_agent(
             // the user confirms the orphan warning.
             if let Some(record) = records.iter().find(|r| r.pubkey == pubkey) {
                 let uncertain = record.execution.is_some()
-                    && crate::connections::load(&app)?
-                        .launches
-                        .values()
-                        .any(|attempt| {
-                            attempt.scope.agent_pubkey == pubkey && attempt.receipt.is_none()
-                        });
+                    && crate::connections::load(&app)?.has_unsettled_launch(&pubkey);
                 super::connections_execution::ensure_deletion_safe(
                     record,
                     uncertain,

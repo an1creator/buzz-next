@@ -54,10 +54,7 @@ pub(crate) fn apply_execution(
     }
     let changed_machine = record.execution.as_ref().map(|value| &value.connection_id)
         != Some(&execution.connection_id);
-    let uncertain_launch = crate::connections::load(app)?
-        .launches
-        .values()
-        .any(|attempt| attempt.scope.agent_pubkey == record.pubkey && attempt.receipt.is_none());
+    let uncertain_launch = crate::connections::load(app)?.has_unsettled_launch(&record.pubkey);
     if changed_machine
         && (record.runtime_pid.is_some() || record.backend_agent_id.is_some() || uncertain_launch)
     {
@@ -102,7 +99,7 @@ pub(crate) fn ensure_deletion_safe(
     force_remote_delete: bool,
 ) -> Result<(), String> {
     if record.execution.is_some() && uncertain_launch {
-        return Err("Launch status is unconfirmed. Recover its status with Start, then stop and confirm this agent before deleting it.".into());
+        return Err("A launch may still be active. Stop and confirm this agent in each community before deleting it.".into());
     }
     if record.backend != BackendKind::Local
         && record.backend_agent_id.is_some()

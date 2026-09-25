@@ -305,12 +305,7 @@ pub async fn update_managed_agent(
         );
         ensure_access_policy_change_supported(record, access_policy_changed)?;
         let uncertain_launch = access_policy_changed
-            && crate::connections::load(&app)?
-                .launches
-                .values()
-                .any(|attempt| {
-                    attempt.scope.agent_pubkey == record.pubkey && attempt.receipt.is_none()
-                });
+            && crate::connections::load(&app)?.has_unsettled_launch(&record.pubkey);
         ensure_connections_access_change_supported(
             record,
             access_policy_changed,
