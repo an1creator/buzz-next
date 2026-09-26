@@ -1,6 +1,9 @@
 name: Buzz Next Linux AppImage
 
 on:
+  push:
+    branches: [feature/linux-appimage]
+    paths: ['.github/workflows/buzz-next-linux.yml']
   workflow_dispatch:
     inputs:
       version:
@@ -23,7 +26,7 @@ jobs:
     timeout-minutes: 120
     env:
       TARGET: x86_64-unknown-linux-gnu
-      VERSION: ${{ inputs.version }}
+      VERSION: ${{ inputs.version || '0.5.25-next.5' }}
       CARGO_BUILD_JOBS: 2
       APPIMAGE_EXTRACT_AND_RUN: '1'
       BUZZ_UPDATER_ENDPOINT: https://buzz.n1creator.com/updates/linux/latest.json
